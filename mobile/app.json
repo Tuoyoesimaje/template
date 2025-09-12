@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Alfred AI",
+    "slug": "alfred-ai-mobile",
+    "version": "0.1.0",
+    "scheme": "alfredai",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.example.alfredai"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.example.alfredai"
+    },
+    "extra": {
+      "defaultApiRoot": "https://alfred-ai-backend.onrender.com"
+    }
+  }
+}

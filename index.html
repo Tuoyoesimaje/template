@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alfred AI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Peel Bar -->
+        <div class="peel-bar" id="peelBar" onclick="toggleReminderPanel()">
+            <div class="peel-content">
+                <span class="peel-text" id="peelText">Math Quiz due in 2 hours</span>
+                <div class="peel-indicator"></div>
+            </div>
+        </div>
+
+        <!-- Reminder Panel -->
+        <div class="reminder-panel" id="reminderPanel">
+            <div class="reminder-list" id="reminderList">
+                <!-- Reminders will be populated here -->
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area" id="chatArea">
+            <div class="message system">
+                <div class="message-bubble">
+                    Welcome! Everything is command-driven — try .reminder, .note, or .quiz.topic.
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Type a command..." onkeydown="handleKeyDown(event)">
+                <button type="button" class="send-button" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes Editor Overlay -->
+    <div class="notes-overlay" id="notesOverlay">
+        <div class="notes-header">
+            <div class="notes-title">Notes Editor</div>
+            <div class="notes-controls">
+                <button class="icon-btn" id="previewToggleBtn" title="Preview" aria-label="Toggle Preview">
+                    <!-- Eye icon -->
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 5c-7 0-11 7-11 7s4 7 11 7 11-7 11-7-4-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10z"/></svg>
+                </button>
+                <button class="icon-btn" id="saveNoteBtn" onclick="saveNote()" title="Save" aria-label="Save Note">
+                    <!-- Save / disk icon -->
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17 3H5a2 2 0 0 0-2 2v14h2v-2h12v2h2V7l-2-4zM12 17a3 3 0 1 1 0-6 3 3 0 0 1 0 6zM6 5h10v4H6V5z"/></svg>
+                </button>
+                <button class="icon-btn" id="closeNotesBtn" onclick="closeNotesEditor()" title="Close" aria-label="Close">
+                    <!-- Close icon -->
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L10.59 13.41 4.29 19.71 2.88 18.29 9.17 12 2.88 5.71 4.29 4.29 10.59 10.59 16.88 4.29z"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="notes-content">
+            <div class="notes-input">
+                <label for="noteTitle">Title</label>
+                <input id="noteTitle" placeholder="Note title" />
+            </div>
+            <div id="noteTitleSuggestions" style="display:none"></div>
+
+            <div class="notes-input notes-body">
+                <textarea id="notesTextarea" placeholder="Write your note in markdown..."></textarea>
+                <div id="notesPreview" class="notes-preview" style="width:320px;max-height:360px;overflow:auto;border:1px solid var(--border);padding:10px;border-radius:6px;background:var(--notes-overlay-bg);display:none"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
