@@ -49,20 +49,51 @@ If you want to use the render.yaml file:
 ✅ **Frontend**: Ready for Vercel deployment
 ✅ **Configuration**: All files properly configured
 
-## Quick Fix Steps
+## 🚨 **CRITICAL: Deploy Separately, NOT as Monorepo**
 
-1. **Deploy Backend to Render**:
-   - New Web Service
-   - Root Directory: `backend/`
-   - Environment: Node
-   - Start Command: `npm run start:production`
+### ❌ **What NOT to do:**
+- Don't deploy the entire repository to Render (this causes the static file error)
+- Don't try to serve frontend from backend
 
-2. **Deploy Frontend to Vercel**:
-   - Import repository
-   - Root Directory: `frontend/`
-   - Set `VITE_API_BASE_URL` to your Render backend URL
+### ✅ **What TO do:**
 
-3. **Update CORS** (after both are deployed):
+#### **Step 1: Deploy Backend to Render**
+1. **Create NEW Render Web Service** (don't use existing one)
+2. **Set Root Directory to: `backend/`** (This is crucial!)
+3. Configure as:
+```
+Name: alfred-ai-backend
+Environment: Node
+Root Directory: backend/
+Build Command: npm install
+Start Command: npm run start:production
+```
+4. **Environment Variables**:
+```
+NODE_ENV=production
+MONGODB_URI=your-mongodb-atlas-connection-string
+JWT_SECRET=your-secret-key
+GEMINI_API_KEY=your-gemini-key
+ALLOWED_ORIGINS=https://your-frontend.vercel.app
+```
+
+#### **Step 2: Deploy Frontend to Vercel**
+1. **Create NEW Vercel Project**
+2. **Set Root Directory to: `frontend/`**
+3. **Environment Variables** (in Vercel dashboard):
+   - Go to Project Settings → Environment Variables
+   - Add: `VITE_API_BASE_URL` = `https://your-render-backend.onrender.com`
+4. **Or use .env file** (recommended for simplicity):
+   - The `frontend/.env` file is already configured
+   - Update it with your production backend URL before deployment
+
+#### **Step 3: Update CORS** (after both are deployed)
+Update the backend's `ALLOWED_ORIGINS` with your actual Vercel URL.
+
+### 🎯 **Result**
+- **Backend**: `https://your-backend.onrender.com` (API only)
+- **Frontend**: `https://your-frontend.vercel.app` (web app)
+- **No static file conflicts** ✅
    - In Render backend settings, update `ALLOWED_ORIGINS` with your Vercel URL
 
 ## Why This Happened
