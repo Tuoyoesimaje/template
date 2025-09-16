@@ -15,7 +15,7 @@ This guide covers deploying both the web and mobile apps to production with prop
                                    ▼
                             ┌─────────────────┐
                             │   Database      │
-                            │   (SQLite)      │
+                            │ (MongoDB Atlas) │
                             └─────────────────┘
 ```
 
@@ -40,7 +40,7 @@ NODE_ENV=production
 PORT=10000
 API_BASE_URL=https://alfred-ai-backend.onrender.com
 GEMINI_API_KEY=your_gemini_api_key_here
-MONGODB_URI=your_mongodb_connection_string_here
+MONGODB_URI=your_mongodb_atlas_connection_string_here
 JWT_SECRET=your_jwt_secret_here
 ```
 
@@ -76,7 +76,7 @@ NODE_ENV=production
 PORT=10000
 API_BASE_URL=https://alfred-ai-backend.onrender.com
 GEMINI_API_KEY=your_actual_gemini_key
-MONGODB_URI=your_mongodb_connection
+MONGODB_URI=your_mongodb_atlas_connection_string
 JWT_SECRET=your_secure_jwt_secret
 ```
 
@@ -197,7 +197,7 @@ const corsOptions = {
 - ✅ `NODE_ENV=production`
 - ✅ `JWT_SECRET` (strong, random string)
 - ✅ `GEMINI_API_KEY` (securely stored)
-- ✅ `MONGODB_URI` (if using MongoDB)
+- ✅ `MONGODB_URI` (MongoDB Atlas connection string - required)
 
 ## 🚨 Troubleshooting
 
