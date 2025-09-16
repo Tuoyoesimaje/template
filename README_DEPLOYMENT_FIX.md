@@ -79,13 +79,25 @@ ALLOWED_ORIGINS=https://your-frontend.vercel.app
 
 #### **Step 2: Deploy Frontend to Vercel**
 1. **Create NEW Vercel Project**
-2. **Set Root Directory to: `frontend/`**
-3. **Environment Variables** (in Vercel dashboard):
+2. **Set Root Directory to: `frontend/`** (This is crucial!)
+3. **Framework Preset: Vite**
+4. **Build Settings:**
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+5. **Environment Variables** (choose one method):
+
+   **Method A: Vercel Dashboard (Recommended)**
    - Go to Project Settings → Environment Variables
    - Add: `VITE_API_BASE_URL` = `https://your-render-backend.onrender.com`
-4. **Or use .env file** (recommended for simplicity):
-   - The `frontend/.env` file is already configured
-   - Update it with your production backend URL before deployment
+
+   **Method B: .env file**
+   - Update `frontend/.env` with your production backend URL:
+   ```bash
+   VITE_API_BASE_URL=https://your-render-backend.onrender.com
+   ```
+   - Commit and push the updated .env file
+
+6. **Deploy**: Vercel will automatically build and deploy
 
 #### **Step 3: Update CORS** (after both are deployed)
 Update the backend's `ALLOWED_ORIGINS` with your actual Vercel URL.
