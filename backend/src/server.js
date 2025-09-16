@@ -950,16 +950,7 @@ app.post('/gemini', async (req, res) => {
   }
 });
 
-// In production, serve the built frontend from ./dist
-if (process.env.NODE_ENV === 'production') {
-  const expressPath = require('path');
-  const distDir = expressPath.join(__dirname, 'dist');
-  app.use(express.static(distDir));
-  // SPA fallback
-  app.get('*', (req, res) => {
-    res.sendFile(expressPath.join(distDir, 'index.html'));
-  });
-}
+// Static file serving removed - frontend is deployed separately to Vercel
 
 // Global error handler
 app.use((err, req, res, next) => {
