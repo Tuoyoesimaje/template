@@ -1959,8 +1959,10 @@
     // -------------------
     // Backend API helpers
     // -------------------
-    // API_ROOT: prefer an explicit saved server URL, else default to localhost:3000 where the proxy/server runs.
-    const API_ROOT = localStorage.getItem('sa_api_root') || 'http://localhost:3000';
+    // API_ROOT: prefer an explicit saved server URL, else use environment variable or default
+    const API_ROOT = localStorage.getItem('sa_api_root') ||
+                     (import.meta.env?.VITE_API_BASE_URL) ||
+                     'http://localhost:3001';
     // store auth token
     const AUTH_TOKEN_KEY = 'sa_auth_token';
 

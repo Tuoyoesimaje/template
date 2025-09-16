@@ -11,7 +11,7 @@ const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const GEMINI_API_URL = process.env.GEMINI_API_URL; // e.g. https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -182,7 +182,16 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? process.env.ALLOWED_ORIGINS?.split(',') : true,
+  origin: process.env.NODE_ENV === 'production'
+    ? process.env.ALLOWED_ORIGINS?.split(',') || [
+        'http://localhost:5173',
+        'http://localhost:3000',
+        'https://alfred-ai-frontend.vercel.app',
+        'https://alfred-ai-frontend.onrender.com',
+        /\.vercel\.app$/,
+        /\.onrender\.com$/
+      ]
+    : true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -867,9 +876,13 @@ app.post('/gemini', async (req, res) => {
           const token = authHeader.split(' ')[1];
           const payload = jwt.verify(token, JWT_SECRET);
           if (payload && payload.id) {
-            const userRow = await new Promise((resolve, reject) => db.get('SELECT * FROM auth_users WHERE id = ?', [payload.id], (err, row) => err ? reject(err) : resolve(row)));
-            if (userRow) {
-              try { prefsMeta = JSON.parse(userRow.meta || '{}'); } catch(e){ prefsMeta = {}; }
+            try {
+              const user = await db.collection('users').findOne({ _id: new ObjectId(payload.id) });
+              if (user && user.meta) {
+                prefsMeta = user.meta;
+              }
+            } catch (e) {
+              console.warn('Failed to load user preferences:', e);
             }
           }
         } catch (e) {
@@ -901,10 +914,10 @@ app.post('/gemini', async (req, res) => {
           headers['X-StudentBuddy-User'] = safeHdr;
         } catch (e) { /* ignore */ }
       } else {
-        // Fall back to legacy last-saved profile in users table (but only if not a dot command)
+        // Fall back to legacy last-saved profile in users collection (but only if not a dot command)
         if (includePrefs) {
           try {
-            const user = await new Promise((resolve, reject) => db.get('SELECT * FROM users ORDER BY id DESC LIMIT 1', (err, row) => err ? reject(err) : resolve(row)));
+            const user = await db.collection('users').findOne({}, { sort: { _id: -1 } });
             if (user) headers['X-StudentBuddy-User'] = Buffer.from(JSON.stringify({ name: user.name, school: user.school })).toString('base64');
           } catch (e) { /* ignore */ }
         }
