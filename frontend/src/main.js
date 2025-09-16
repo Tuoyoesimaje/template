@@ -3,7 +3,7 @@
 // and listeners are cleaned up during HMR reloads.
 
 // Import global styles (optional - keeps behaviour same as before)
-import '../style.css';
+import './styles/style.css';
 
 // Expose a simple cleanup registry so modules can register disposers.
 const _cleanupFns = [];
@@ -34,7 +34,7 @@ if (!window.handleKeyDown) {
 }
 
 // Load the main app logic (app.js will register the real handlers on window)
-import '../app.js';
+import './app.js';
 
 // If any queued quiz calls exist and the real handler is now available, replay them
 setTimeout(() => {
