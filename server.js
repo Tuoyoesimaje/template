@@ -7,6 +7,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const bodyParser = require('body-parser');
 const rateLimit = require('express-rate-limit');
+const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
 
 const app = express();
@@ -23,42 +24,68 @@ if (!JWT_SECRET) {
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// SQLite setup with error handling
-const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'studentbuddy.db');
-
-let db;
-try {
-  db = new sqlite3.Database(DB_PATH);
-  db.on('error', (err) => {
-    console.error('Database error:', err);
-  });
-} catch (err) {
-  console.error('Failed to connect to database:', err);
+// MongoDB setup with error handling
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error('MONGODB_URI environment variable is required');
   process.exit(1);
 }
 
-// Create tables if not present
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, school TEXT, email TEXT, meta TEXT)`);
-  // auth users table: email (unique), password hash, profile meta
-  db.run(`CREATE TABLE IF NOT EXISTS auth_users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password_hash TEXT, meta TEXT)`);
-  db.run(`CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, title TEXT, content TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME, FOREIGN KEY (user_id) REFERENCES auth_users (id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS reminders (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, title TEXT, dueDate TEXT, timestamp INTEGER, status TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES auth_users (id))`);
-  // Add completed_at column if it doesn't exist (ignore error if already present)
-  db.run('ALTER TABLE reminders ADD COLUMN completed_at INTEGER', (err) => { /* ignore if column exists */ });
-  // messages table for chat history
-  db.run(`CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, role TEXT, content TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES auth_users (id))`);
-  // settings table for global key/value preferences (theme, etc.)
-  db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
-  // ensure a default theme exists (only inserts if missing)
-  db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('theme','light')`);
+let mongoClient;
+let db;
 
-  // Add user_id columns to existing tables if they don't exist
-  db.run('ALTER TABLE notes ADD COLUMN user_id INTEGER REFERENCES auth_users (id)', (err) => { /* ignore if column exists */ });
-  db.run('ALTER TABLE reminders ADD COLUMN user_id INTEGER REFERENCES auth_users (id)', (err) => { /* ignore if column exists */ });
-  db.run('ALTER TABLE messages ADD COLUMN user_id INTEGER REFERENCES auth_users (id)', (err) => { /* ignore if column exists */ });
+async function connectToMongoDB() {
+  try {
+    mongoClient = new MongoClient(MONGODB_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    });
+
+    await mongoClient.connect();
+    db = mongoClient.db('studentbuddy'); // Database name from URI or default
+
+    console.log('Connected to MongoDB Atlas');
+
+    // Create collections if they don't exist
+    const collections = await db.listCollections().toArray();
+    const collectionNames = collections.map(col => col.name);
+
+    const requiredCollections = ['users', 'notes', 'reminders', 'messages', 'settings'];
+
+    for (const collectionName of requiredCollections) {
+      if (!collectionNames.includes(collectionName)) {
+        await db.createCollection(collectionName);
+        console.log(`Created collection: ${collectionName}`);
+      }
+    }
+
+    // Create indexes for better performance
+    await db.collection('users').createIndex({ email: 1 }, { unique: true });
+    await db.collection('notes').createIndex({ user_id: 1, created_at: -1 });
+    await db.collection('reminders').createIndex({ user_id: 1, created_at: -1 });
+    await db.collection('messages').createIndex({ user_id: 1, created_at: -1 });
+    await db.collection('settings').createIndex({ key: 1 }, { unique: true });
+
+    console.log('Database indexes created');
+
+  } catch (err) {
+    console.error('Failed to connect to MongoDB:', err);
+    process.exit(1);
+  }
+}
+
+// Initialize MongoDB connection and setup
+connectToMongoDB().then(() => {
+  // Ensure default theme setting exists
+  db.collection('settings').updateOne(
+    { key: 'theme' },
+    { $set: { key: 'theme', value: 'light' } },
+    { upsert: true }
+  );
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
 
 if (!GEMINI_API_URL) {
@@ -173,233 +200,307 @@ app.use('/gemini', geminiLimiter);
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 // --- Simple CRUD endpoints for Student Buddy data (notes, reminders, users)
-app.get('/api/notes', authMiddleware, (req, res) => {
-  const userId = req.user.id;
-  db.all('SELECT * FROM notes WHERE user_id = ? ORDER BY created_at DESC', [userId], (err, rows) => {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json(rows);
-  });
+app.get('/api/notes', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const notes = await db.collection('notes')
+      .find({ user_id: userId })
+      .sort({ created_at: -1 })
+      .toArray();
+    res.json(notes);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
-app.post('/api/notes', authMiddleware, (req, res) => {
-  const { title, content } = req.body || {};
-  const userId = req.user.id;
+app.post('/api/notes', authMiddleware, async (req, res) => {
+  try {
+    const { title, content } = req.body || {};
+    const userId = req.user.id;
 
-  // Validate input
-  if (!title || typeof title !== 'string') {
-    return res.status(400).json({ error: 'Title is required and must be a string' });
-  }
-  if (!content || typeof content !== 'string') {
-    return res.status(400).json({ error: 'Content is required and must be a string' });
-  }
+    // Validate input
+    if (!title || typeof title !== 'string') {
+      return res.status(400).json({ error: 'Title is required and must be a string' });
+    }
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Content is required and must be a string' });
+    }
 
-  // Sanitize input
-  const sanitizedTitle = sanitizeString(title, 200);
-  const sanitizedContent = sanitizeString(content, 10000);
+    // Sanitize input
+    const sanitizedTitle = sanitizeString(title, 200);
+    const sanitizedContent = sanitizeString(content, 10000);
 
-  if (!sanitizedTitle) {
-    return res.status(400).json({ error: 'Title cannot be empty after sanitization' });
-  }
-  if (!sanitizedContent) {
-    return res.status(400).json({ error: 'Content cannot be empty after sanitization' });
-  }
+    if (!sanitizedTitle) {
+      return res.status(400).json({ error: 'Title cannot be empty after sanitization' });
+    }
+    if (!sanitizedContent) {
+      return res.status(400).json({ error: 'Content cannot be empty after sanitization' });
+    }
 
-  db.run('INSERT INTO notes (user_id, title, content, updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP)', [userId, sanitizedTitle, sanitizedContent], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json({ id: this.lastID, title: sanitizedTitle, content: sanitizedContent });
-  });
+    const now = new Date();
+    const result = await db.collection('notes').insertOne({
+      user_id: userId,
+      title: sanitizedTitle,
+      content: sanitizedContent,
+      created_at: now,
+      updated_at: now
+    });
+
+    res.json({
+      _id: result.insertedId,
+      id: result.insertedId.toString(),
+      title: sanitizedTitle,
+      content: sanitizedContent,
+      created_at: now,
+      updated_at: now
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
-app.delete('/api/notes/:id', authMiddleware, (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
+app.delete('/api/notes/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
 
-  // Validate input
-  if (!validateId(id)) {
-    return res.status(400).json({ error: 'Invalid ID format' });
+    // Validate input
+    if (!validateId(id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    let objectId;
+    try {
+      objectId = new ObjectId(id);
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid ObjectId format' });
+    }
+
+    const result = await db.collection('notes').deleteOne({
+      _id: objectId,
+      user_id: userId
+    });
+
+    res.json({ deleted: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
-
-  db.run('DELETE FROM notes WHERE id = ? AND user_id = ?', [id, userId], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json({ deleted: this.changes });
-  });
 });
 
-app.get('/api/reminders', authMiddleware, (req, res) => {
-  const userId = req.user.id;
-  db.all('SELECT * FROM reminders WHERE user_id = ? ORDER BY created_at DESC', [userId], (err, rows) => {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json(rows);
-  });
+app.get('/api/reminders', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const reminders = await db.collection('reminders')
+      .find({ user_id: userId })
+      .sort({ created_at: -1 })
+      .toArray();
+    res.json(reminders);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
-app.post('/api/reminders', authMiddleware, (req, res) => {
-  const { title, dueDate, timestamp, status } = req.body || {};
-  const userId = req.user.id;
-  const completed_at = req.body.completedAt || null;
+app.post('/api/reminders', authMiddleware, async (req, res) => {
+  try {
+    const { title, dueDate, timestamp, status } = req.body || {};
+    const userId = req.user.id;
+    const completed_at = req.body.completedAt || null;
 
-  // Validate input
-  if (!title || typeof title !== 'string') {
-    return res.status(400).json({ error: 'Title is required and must be a string' });
-  }
-  if (dueDate && typeof dueDate !== 'string') {
-    return res.status(400).json({ error: 'Due date must be a string' });
-  }
-  if (timestamp && (typeof timestamp !== 'number' || timestamp < 0)) {
-    return res.status(400).json({ error: 'Timestamp must be a positive number' });
-  }
-  if (status && !validateStatus(status)) {
-    return res.status(400).json({ error: 'Invalid status value' });
-  }
-  if (completed_at && (typeof completed_at !== 'number' || completed_at < 0)) {
-    return res.status(400).json({ error: 'Completed timestamp must be a positive number' });
-  }
+    // Validate input
+    if (!title || typeof title !== 'string') {
+      return res.status(400).json({ error: 'Title is required and must be a string' });
+    }
+    if (dueDate && typeof dueDate !== 'string') {
+      return res.status(400).json({ error: 'Due date must be a string' });
+    }
+    if (timestamp && (typeof timestamp !== 'number' || timestamp < 0)) {
+      return res.status(400).json({ error: 'Timestamp must be a positive number' });
+    }
+    if (status && !validateStatus(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    if (completed_at && (typeof completed_at !== 'number' || completed_at < 0)) {
+      return res.status(400).json({ error: 'Completed timestamp must be a positive number' });
+    }
 
-  // Sanitize input
-  const sanitizedTitle = sanitizeString(title, 200);
-  const sanitizedDueDate = dueDate ? sanitizeString(dueDate, 100) : null;
+    // Sanitize input
+    const sanitizedTitle = sanitizeString(title, 200);
+    const sanitizedDueDate = dueDate ? sanitizeString(dueDate, 100) : null;
 
-  if (!sanitizedTitle) {
-    return res.status(400).json({ error: 'Title cannot be empty after sanitization' });
+    if (!sanitizedTitle) {
+      return res.status(400).json({ error: 'Title cannot be empty after sanitization' });
+    }
+
+    const now = new Date();
+    const result = await db.collection('reminders').insertOne({
+      user_id: userId,
+      title: sanitizedTitle,
+      dueDate: sanitizedDueDate,
+      timestamp: timestamp || null,
+      status: status || 'pending',
+      completed_at: completed_at,
+      created_at: now
+    });
+
+    res.json({
+      _id: result.insertedId,
+      id: result.insertedId.toString(),
+      title: sanitizedTitle,
+      dueDate: sanitizedDueDate,
+      timestamp,
+      status: status || 'pending',
+      completed_at: completed_at,
+      created_at: now
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
-
-  db.run('INSERT INTO reminders (user_id, title, dueDate, timestamp, status, completed_at) VALUES (?,?,?,?,?,?)', [userId, sanitizedTitle, sanitizedDueDate, timestamp || null, status || 'pending', completed_at], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json({ id: this.lastID, title: sanitizedTitle, dueDate: sanitizedDueDate, timestamp, status, completed_at: completed_at });
-  });
 });
 
-app.delete('/api/reminders/:id', authMiddleware, (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
+app.delete('/api/reminders/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
 
-  // Validate input
-  if (!validateId(id)) {
-    return res.status(400).json({ error: 'Invalid ID format' });
+    // Validate input
+    if (!validateId(id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+
+    let objectId;
+    try {
+      objectId = new ObjectId(id);
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid ObjectId format' });
+    }
+
+    const result = await db.collection('reminders').deleteOne({
+      _id: objectId,
+      user_id: userId
+    });
+
+    res.json({ deleted: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
-
-  db.run('DELETE FROM reminders WHERE id = ? AND user_id = ?', [id, userId], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json({ deleted: this.changes });
-  });
 });
 
-app.put('/api/reminders/:id', authMiddleware, (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
-  const { title, dueDate, timestamp, status, completedAt } = req.body || {};
+app.put('/api/reminders/:id', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { title, dueDate, timestamp, status, completedAt } = req.body || {};
 
-  // Validate input
-  if (!validateId(id)) {
-    return res.status(400).json({ error: 'Invalid ID format' });
-  }
-  if (title && typeof title !== 'string') {
-    return res.status(400).json({ error: 'Title must be a string' });
-  }
-  if (dueDate && typeof dueDate !== 'string') {
-    return res.status(400).json({ error: 'Due date must be a string' });
-  }
-  if (timestamp && (typeof timestamp !== 'number' || timestamp < 0)) {
-    return res.status(400).json({ error: 'Timestamp must be a positive number' });
-  }
-  if (status && !validateStatus(status)) {
-    return res.status(400).json({ error: 'Invalid status value' });
-  }
-  if (completedAt && (typeof completedAt !== 'number' || completedAt < 0)) {
-    return res.status(400).json({ error: 'Completed timestamp must be a positive number' });
-  }
+    // Validate input
+    if (!validateId(id)) {
+      return res.status(400).json({ error: 'Invalid ID format' });
+    }
+    if (title && typeof title !== 'string') {
+      return res.status(400).json({ error: 'Title must be a string' });
+    }
+    if (dueDate && typeof dueDate !== 'string') {
+      return res.status(400).json({ error: 'Due date must be a string' });
+    }
+    if (timestamp && (typeof timestamp !== 'number' || timestamp < 0)) {
+      return res.status(400).json({ error: 'Timestamp must be a positive number' });
+    }
+    if (status && !validateStatus(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    if (completedAt && (typeof completedAt !== 'number' || completedAt < 0)) {
+      return res.status(400).json({ error: 'Completed timestamp must be a positive number' });
+    }
 
-  // Sanitize input
-  const sanitizedTitle = title ? sanitizeString(title, 200) : null;
-  const sanitizedDueDate = dueDate ? sanitizeString(dueDate, 100) : null;
+    let objectId;
+    try {
+      objectId = new ObjectId(id);
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid ObjectId format' });
+    }
 
-  db.run('UPDATE reminders SET title = COALESCE(?, title), dueDate = COALESCE(?, dueDate), timestamp = COALESCE(?, timestamp), status = COALESCE(?, status), completed_at = COALESCE(?, completed_at) WHERE id = ? AND user_id = ?', [sanitizedTitle, sanitizedDueDate, timestamp || null, status, completedAt || null, id, userId], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json({ updated: this.changes });
-  });
+    // Sanitize input
+    const sanitizedTitle = title ? sanitizeString(title, 200) : null;
+    const sanitizedDueDate = dueDate ? sanitizeString(dueDate, 100) : null;
+
+    const updateFields = {};
+    if (sanitizedTitle !== null) updateFields.title = sanitizedTitle;
+    if (sanitizedDueDate !== null) updateFields.dueDate = sanitizedDueDate;
+    if (timestamp !== undefined) updateFields.timestamp = timestamp;
+    if (status !== undefined) updateFields.status = status;
+    if (completedAt !== undefined) updateFields.completed_at = completedAt;
+
+    if (Object.keys(updateFields).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
+    }
+
+    const result = await db.collection('reminders').updateOne(
+      { _id: objectId, user_id: userId },
+      { $set: updateFields }
+    );
+
+    res.json({ updated: result.modifiedCount });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // User details
-app.get('/api/user', (req, res) => {
-  // Return currently saved user profile (legacy single-profile) if any
-  db.get('SELECT * FROM users ORDER BY id DESC LIMIT 1', (err, row) => {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json(row || {});
-  });
+app.get('/api/user', async (req, res) => {
+  try {
+    // Return currently saved user profile (legacy single-profile) if any
+    const user = await db.collection('users').findOne({}, { sort: { _id: -1 } });
+    res.json(user || {});
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // --- AUTH ---
 // Signup: create auth user and optional profile
 app.post('/api/auth/signup', async (req, res) => {
-  const { email, password, name, school, meta } = req.body || {};
-
-  // Validate input
-  if (!email || !validateEmail(email)) {
-    return res.status(400).json({ error: 'Valid email is required' });
-  }
-  if (!validatePassword(password)) {
-    return res.status(400).json({ error: 'Password must be 6-128 characters long' });
-  }
-  if (name && typeof name !== 'string') {
-    return res.status(400).json({ error: 'Name must be a string' });
-  }
-  if (school && typeof school !== 'string') {
-    return res.status(400).json({ error: 'School must be a string' });
-  }
-
-  // Sanitize input
-  const sanitizedEmail = sanitizeString(email, 254).toLowerCase();
-  const sanitizedName = name ? sanitizeString(name, 100) : '';
-  const sanitizedSchool = school ? sanitizeString(school, 100) : '';
-
   try {
+    const { email, password, name, school, meta } = req.body || {};
+
+    // Validate input
+    if (!email || !validateEmail(email)) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    if (!validatePassword(password)) {
+      return res.status(400).json({ error: 'Password must be 6-128 characters long' });
+    }
+    if (name && typeof name !== 'string') {
+      return res.status(400).json({ error: 'Name must be a string' });
+    }
+    if (school && typeof school !== 'string') {
+      return res.status(400).json({ error: 'School must be a string' });
+    }
+
+    // Sanitize input
+    const sanitizedEmail = sanitizeString(email, 254).toLowerCase();
+    const sanitizedName = name ? sanitizeString(name, 100) : '';
+    const sanitizedSchool = school ? sanitizeString(school, 100) : '';
+
+    // Check if email already exists
+    const existingUser = await db.collection('users').findOne({ email: sanitizedEmail });
+    if (existingUser) {
+      return res.status(409).json({ error: 'Email already exists' });
+    }
+
     const hash = await bcrypt.hash(password, 10);
-    db.run('INSERT INTO auth_users (email, password_hash, meta) VALUES (?,?,?)', [sanitizedEmail, hash, JSON.stringify(meta || {})], function(err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
-          return res.status(409).json({ error: 'Email already exists' });
-        }
-        return res.status(500).json({ error: String(err) });
-      }
-      const token = jwt.sign(
-        { id: this.lastID, email: sanitizedEmail },
-        JWT_SECRET,
-        {
-          expiresIn: '30d',
-          issuer: 'studentbuddy',
-          audience: 'studentbuddy-api',
-          algorithm: 'HS256'
-        }
-      );
-      // Optionally save profile to users table for legacy compatibility
-      db.run('INSERT INTO users (name, school, email, meta) VALUES (?,?,?,?)', [sanitizedName, sanitizedSchool, sanitizedEmail, JSON.stringify(meta || {})]);
-      res.json({ token, email: sanitizedEmail });
+    const now = new Date();
+
+    const result = await db.collection('users').insertOne({
+      email: sanitizedEmail,
+      password_hash: hash,
+      name: sanitizedName,
+      school: sanitizedSchool,
+      meta: meta || {},
+      created_at: now,
+      updated_at: now
     });
-  } catch (e) { res.status(500).json({ error: String(e) }); }
-});
 
-// Login: validate credentials and return token
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body || {};
-
-  // Validate input
-  if (!email || !validateEmail(email)) {
-    return res.status(400).json({ error: 'Valid email is required' });
-  }
-  if (!password || typeof password !== 'string') {
-    return res.status(400).json({ error: 'Password is required' });
-  }
-
-  // Sanitize input
-  const sanitizedEmail = sanitizeString(email, 254).toLowerCase();
-
-  db.get('SELECT * FROM auth_users WHERE email = ?', [sanitizedEmail], async (err, row) => {
-    if (err) return res.status(500).json({ error: String(err) });
-    if (!row) return res.status(401).json({ error: 'Invalid credentials' });
-    const match = await bcrypt.compare(password, row.password_hash || '');
-    if (!match) return res.status(401).json({ error: 'Invalid credentials' });
     const token = jwt.sign(
-      { id: row.id, email: sanitizedEmail },
+      { id: result.insertedId.toString(), email: sanitizedEmail },
       JWT_SECRET,
       {
         expiresIn: '30d',
@@ -408,8 +509,50 @@ app.post('/api/auth/login', (req, res) => {
         algorithm: 'HS256'
       }
     );
+
     res.json({ token, email: sanitizedEmail });
-  });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Login: validate credentials and return token
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+
+    // Validate input
+    if (!email || !validateEmail(email)) {
+      return res.status(400).json({ error: 'Valid email is required' });
+    }
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+
+    // Sanitize input
+    const sanitizedEmail = sanitizeString(email, 254).toLowerCase();
+
+    const user = await db.collection('users').findOne({ email: sanitizedEmail });
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+    const match = await bcrypt.compare(password, user.password_hash || '');
+    if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+
+    const token = jwt.sign(
+      { id: user._id.toString(), email: sanitizedEmail },
+      JWT_SECRET,
+      {
+        expiresIn: '30d',
+        issuer: 'studentbuddy',
+        audience: 'studentbuddy-api',
+        algorithm: 'HS256'
+      }
+    );
+
+    res.json({ token, email: sanitizedEmail });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // Middleware: authenticate using Bearer token
@@ -444,156 +587,215 @@ function authMiddleware(req, res, next) {
 }
 
 // Save or update user preferences (protected)
-app.post('/api/user/preferences', authMiddleware, (req, res) => {
-  const meta = req.body && req.body.meta;
+app.post('/api/user/preferences', authMiddleware, async (req, res) => {
+  try {
+    const meta = req.body && req.body.meta;
 
-  // Validate input
-  if (!meta || typeof meta !== 'object') {
-    return res.status(400).json({ error: 'Meta object is required' });
-  }
+    // Validate input
+    if (!meta || typeof meta !== 'object') {
+      return res.status(400).json({ error: 'Meta object is required' });
+    }
 
-  // Validate and sanitize meta fields
-  const sanitizedMeta = {};
-  if (meta.name) {
-    if (typeof meta.name !== 'string') {
-      return res.status(400).json({ error: 'Name must be a string' });
+    // Validate and sanitize meta fields
+    const sanitizedMeta = {};
+    if (meta.name) {
+      if (typeof meta.name !== 'string') {
+        return res.status(400).json({ error: 'Name must be a string' });
+      }
+      sanitizedMeta.name = sanitizeString(meta.name, 100);
     }
-    sanitizedMeta.name = sanitizeString(meta.name, 100);
-  }
-  if (meta.school) {
-    if (typeof meta.school !== 'string') {
-      return res.status(400).json({ error: 'School must be a string' });
+    if (meta.school) {
+      if (typeof meta.school !== 'string') {
+        return res.status(400).json({ error: 'School must be a string' });
+      }
+      sanitizedMeta.school = sanitizeString(meta.school, 100);
     }
-    sanitizedMeta.school = sanitizeString(meta.school, 100);
-  }
-  if (meta.fav) {
-    if (typeof meta.fav !== 'string') {
-      return res.status(400).json({ error: 'Favorites must be a string' });
+    if (meta.fav) {
+      if (typeof meta.fav !== 'string') {
+        return res.status(400).json({ error: 'Favorites must be a string' });
+      }
+      sanitizedMeta.fav = sanitizeString(meta.fav, 200);
     }
-    sanitizedMeta.fav = sanitizeString(meta.fav, 200);
-  }
-  if (meta.hobbies) {
-    if (typeof meta.hobbies !== 'string') {
-      return res.status(400).json({ error: 'Hobbies must be a string' });
+    if (meta.hobbies) {
+      if (typeof meta.hobbies !== 'string') {
+        return res.status(400).json({ error: 'Hobbies must be a string' });
+      }
+      sanitizedMeta.hobbies = sanitizeString(meta.hobbies, 200);
     }
-    sanitizedMeta.hobbies = sanitizeString(meta.hobbies, 200);
-  }
-  if (meta.movies) {
-    if (typeof meta.movies !== 'string') {
-      return res.status(400).json({ error: 'Movies must be a string' });
+    if (meta.movies) {
+      if (typeof meta.movies !== 'string') {
+        return res.status(400).json({ error: 'Movies must be a string' });
+      }
+      sanitizedMeta.movies = sanitizeString(meta.movies, 200);
     }
-    sanitizedMeta.movies = sanitizeString(meta.movies, 200);
-  }
-  if (meta.goals) {
-    if (typeof meta.goals !== 'string') {
-      return res.status(400).json({ error: 'Goals must be a string' });
+    if (meta.goals) {
+      if (typeof meta.goals !== 'string') {
+        return res.status(400).json({ error: 'Goals must be a string' });
+      }
+      sanitizedMeta.goals = sanitizeString(meta.goals, 500);
     }
-    sanitizedMeta.goals = sanitizeString(meta.goals, 500);
-  }
 
-  const email = req.user && req.user.email;
-  // update auth_users.meta and also the legacy users table
-  db.run('UPDATE auth_users SET meta = ? WHERE email = ?', [JSON.stringify(sanitizedMeta), email], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
-    db.run('INSERT OR REPLACE INTO users (id, name, school, email, meta) VALUES ((SELECT id FROM users WHERE email = ?), ?, ?, ?, ?)', [email, sanitizedMeta.name || '', sanitizedMeta.school || '', email, JSON.stringify(sanitizedMeta)], function(e) {
-      // ignore inner error
-      res.json({ ok: true, meta: sanitizedMeta });
-    });
-  });
+    const email = req.user && req.user.email;
+
+    // Update user document with new meta
+    const result = await db.collection('users').updateOne(
+      { email },
+      {
+        $set: {
+          meta: sanitizedMeta,
+          updated_at: new Date()
+        }
+      }
+    );
+
+    res.json({ ok: true, meta: sanitizedMeta });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // Return prefs for current token
-app.get('/api/user/preferences', authMiddleware, (req, res) => {
-  const email = req.user && req.user.email;
-  db.get('SELECT meta FROM auth_users WHERE email = ?', [email], (err, row) => {
-    if (err) return res.status(500).json({ error: String(err) });
-    try { res.json({ meta: row ? JSON.parse(row.meta || '{}') : {} }); } catch (e) { res.json({ meta: {} }); }
-  });
+app.get('/api/user/preferences', authMiddleware, async (req, res) => {
+  try {
+    const email = req.user && req.user.email;
+    const user = await db.collection('users').findOne({ email }, { projection: { meta: 1 } });
+    const meta = user && user.meta ? user.meta : {};
+    res.json({ meta });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // Chat messages endpoints
-app.post('/api/messages', authMiddleware, (req, res) => {
-  const { role, content } = req.body || {};
-  const userId = req.user.id;
+app.post('/api/messages', authMiddleware, async (req, res) => {
+  try {
+    const { role, content } = req.body || {};
+    const userId = req.user.id;
 
-  // Validate input
-  if (!validateRole(role)) {
-    return res.status(400).json({ error: 'Invalid role. Must be user, assistant, or system' });
+    // Validate input
+    if (!validateRole(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be user, assistant, or system' });
+    }
+    if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: 'Content is required and must be a string' });
+    }
+
+    // Sanitize input
+    const sanitizedContent = sanitizeString(content, 5000);
+
+    if (!sanitizedContent) {
+      return res.status(400).json({ error: 'Content cannot be empty after sanitization' });
+    }
+
+    const now = new Date();
+    const result = await db.collection('messages').insertOne({
+      user_id: userId,
+      role,
+      content: sanitizedContent,
+      created_at: now
+    });
+
+    res.json({
+      _id: result.insertedId,
+      id: result.insertedId.toString(),
+      role,
+      content: sanitizedContent,
+      created_at: now
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
-  if (!content || typeof content !== 'string') {
-    return res.status(400).json({ error: 'Content is required and must be a string' });
-  }
-
-  // Sanitize input
-  const sanitizedContent = sanitizeString(content, 5000);
-
-  if (!sanitizedContent) {
-    return res.status(400).json({ error: 'Content cannot be empty after sanitization' });
-  }
-
-  db.run('INSERT INTO messages (user_id, role, content) VALUES (?,?,?)', [userId, role, sanitizedContent], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json({ id: this.lastID, role, content: sanitizedContent });
-  });
 });
 
-app.get('/api/messages', authMiddleware, (req, res) => {
-  const userId = req.user.id;
-  db.all('SELECT * FROM messages WHERE user_id = ? ORDER BY created_at ASC', [userId], (err, rows) => {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json(rows);
-  });
+app.get('/api/messages', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const messages = await db.collection('messages')
+      .find({ user_id: userId })
+      .sort({ created_at: 1 })
+      .toArray();
+    res.json(messages);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
 // Settings endpoints (simple key/value store)
-app.get('/api/settings/theme', (req, res) => {
-  db.get('SELECT value FROM settings WHERE key = ?', ['theme'], (err, row) => {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json({ theme: (row && row.value) || 'light' });
-  });
+app.get('/api/settings/theme', async (req, res) => {
+  try {
+    const setting = await db.collection('settings').findOne({ key: 'theme' });
+    res.json({ theme: (setting && setting.value) || 'light' });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
-app.post('/api/settings/theme', (req, res) => {
-  const theme = req.body && req.body.theme;
+app.post('/api/settings/theme', async (req, res) => {
+  try {
+    const theme = req.body && req.body.theme;
 
-  // Validate input
-  if (!theme || !validateTheme(theme)) {
-    return res.status(400).json({ error: 'Valid theme is required' });
-  }
+    // Validate input
+    if (!theme || !validateTheme(theme)) {
+      return res.status(400).json({ error: 'Valid theme is required' });
+    }
 
-  db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)', ['theme', theme], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
+    await db.collection('settings').updateOne(
+      { key: 'theme' },
+      { $set: { key: 'theme', value: theme } },
+      { upsert: true }
+    );
+
     res.json({ theme });
-  });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
 });
 
-app.post('/api/user', (req, res) => {
-  const { name, school, email, meta } = req.body || {};
+app.post('/api/user', async (req, res) => {
+  try {
+    const { name, school, email, meta } = req.body || {};
 
-  // Validate input
-  if (!name || typeof name !== 'string') {
-    return res.status(400).json({ error: 'Name is required and must be a string' });
-  }
-  if (school && typeof school !== 'string') {
-    return res.status(400).json({ error: 'School must be a string' });
-  }
-  if (email && !validateEmail(email)) {
-    return res.status(400).json({ error: 'Email must be valid' });
-  }
+    // Validate input
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'Name is required and must be a string' });
+    }
+    if (school && typeof school !== 'string') {
+      return res.status(400).json({ error: 'School must be a string' });
+    }
+    if (email && !validateEmail(email)) {
+      return res.status(400).json({ error: 'Email must be valid' });
+    }
 
-  // Sanitize input
-  const sanitizedName = sanitizeString(name, 100);
-  const sanitizedSchool = school ? sanitizeString(school, 100) : '';
-  const sanitizedEmail = email ? sanitizeString(email, 254).toLowerCase() : '';
+    // Sanitize input
+    const sanitizedName = sanitizeString(name, 100);
+    const sanitizedSchool = school ? sanitizeString(school, 100) : '';
+    const sanitizedEmail = email ? sanitizeString(email, 254).toLowerCase() : '';
 
-  if (!sanitizedName) {
-    return res.status(400).json({ error: 'Name cannot be empty after sanitization' });
+    if (!sanitizedName) {
+      return res.status(400).json({ error: 'Name cannot be empty after sanitization' });
+    }
+
+    const now = new Date();
+    const result = await db.collection('users').insertOne({
+      name: sanitizedName,
+      school: sanitizedSchool,
+      email: sanitizedEmail,
+      meta: meta || {},
+      created_at: now,
+      updated_at: now
+    });
+
+    res.json({
+      _id: result.insertedId,
+      id: result.insertedId.toString(),
+      name: sanitizedName,
+      school: sanitizedSchool,
+      email: sanitizedEmail,
+      meta
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
-
-  db.run('INSERT INTO users (name, school, email, meta) VALUES (?,?,?,?)', [sanitizedName, sanitizedSchool, sanitizedEmail, JSON.stringify(meta || {})], function(err) {
-    if (err) return res.status(500).json({ error: String(err) });
-    res.json({ id: this.lastID, name: sanitizedName, school: sanitizedSchool, email: sanitizedEmail, meta });
-  });
 });
 
 // Proxy endpoint
@@ -765,17 +967,13 @@ app.use((req, res) => {
 });
 
 // Process-level error handling
-process.on('uncaughtException', (err) => {
+process.on('uncaughtException', async (err) => {
   console.error('Uncaught Exception:', err);
   // Close database connection gracefully
-  if (db) {
-    db.close((closeErr) => {
-      if (closeErr) console.error('Error closing database:', closeErr);
-      process.exit(1);
-    });
-  } else {
-    process.exit(1);
+  if (mongoClient) {
+    await mongoClient.close();
   }
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -787,28 +985,26 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
-  if (db) {
-    db.close((err) => {
-      if (err) console.error('Error closing database:', err);
-      process.exit(0);
-    });
-  } else {
-    process.exit(0);
+  if (mongoClient) {
+    await mongoClient.close();
   }
+  process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
-  if (db) {
-    db.close((err) => {
-      if (err) console.error('Error closing database:', err);
-      process.exit(0);
-    });
-  } else {
-    process.exit(0);
+  if (mongoClient) {
+    await mongoClient.close();
   }
+  process.exit(0);
 });
 
-app.listen(PORT, () => console.log(`Gemini proxy listening on http://localhost:${PORT} (forwarding to ${GEMINI_API_URL || '<<not configured>>'})`));
+// Start server after MongoDB connection
+connectToMongoDB().then(() => {
+  app.listen(PORT, () => console.log(`Gemini proxy listening on http://localhost:${PORT} (forwarding to ${GEMINI_API_URL || '<<not configured>>'})`));
+}).catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});
