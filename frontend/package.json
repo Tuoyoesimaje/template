@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build && npm run copy-html",
     "build:production": "vite build && npm run copy-html",
-    "copy-html": "copy login.html dist\\ && copy signup.html dist\\ && copy profile.html dist\\",
+    "copy-html": "node -e \"const fs = require('fs'); ['login.html', 'signup.html', 'profile.html'].forEach(f => fs.copyFileSync(f, 'dist/' + f));\"",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
