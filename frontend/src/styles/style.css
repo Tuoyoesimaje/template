@@ -102,12 +102,30 @@
         background: var(--input-bg);
         color: var(--text-primary);
         transition: border-color 0.2s ease;
+        line-height: 1.4;
+    }
+
+    /* Specific textarea styling for mobile */
+    .auth-container textarea {
+        min-height: 120px;
+        max-height: 200px;
+        resize: vertical;
+        font-family: inherit;
+        line-height: 1.5;
+        padding: 16px 14px;
     }
 
     .auth-container input:focus, .auth-container textarea:focus {
         outline: none;
         border-color: var(--accent-1);
         box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    /* Ensure text is visible in all inputs */
+    .auth-container input::placeholder,
+    .auth-container textarea::placeholder {
+        color: var(--muted);
+        opacity: 0.7;
     }
 
     /* Ensure buttons are properly sized for touch */
