@@ -98,35 +98,48 @@
     /* reduce heavy shadows on mobile to keep it light-weight */
     .auth-container, .qa-chat { box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
 
-    /* Better input styling for mobile */
+    /* Better input styling for mobile - FORCE OVERRIDE */
     .auth-container input, .auth-container textarea {
-        font-size: 16px;
-        padding: 16px 14px;
-        border-radius: 12px;
-        border: 2px solid var(--border);
-        min-height: 48px;
-        width: 100%;
-        box-sizing: border-box;
-        background: var(--input-bg);
-        color: var(--text-primary);
-        transition: border-color 0.2s ease;
-        line-height: 1.4;
+        font-size: 16px !important;
+        padding: 16px 14px !important;
+        border-radius: 12px !important;
+        border: 2px solid var(--border) !important;
+        min-height: 48px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        background: var(--input-bg) !important;
+        color: var(--text-primary) !important;
+        transition: border-color 0.2s ease !important;
+        line-height: 1.4 !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 
-    /* Specific textarea styling for mobile */
+    /* Specific textarea styling for mobile - FORCE OVERRIDE */
     .auth-container textarea {
-        min-height: 120px;
-        max-height: 200px;
-        resize: vertical;
-        font-family: inherit;
-        line-height: 1.5;
-        padding: 16px 14px;
+        min-height: 120px !important;
+        max-height: 200px !important;
+        resize: vertical !important;
+        font-family: inherit !important;
+        line-height: 1.5 !important;
+        padding: 16px 14px !important;
+        font-size: 16px !important;
+        border-radius: 12px !important;
+        border: 2px solid var(--border) !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        background: var(--input-bg) !important;
+        color: var(--text-primary) !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
     }
 
     .auth-container input:focus, .auth-container textarea:focus {
-        outline: none;
-        border-color: var(--accent-1);
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        outline: none !important;
+        border-color: var(--accent-1) !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
     }
 
     /* Ensure text is visible in all inputs */
@@ -717,31 +730,83 @@
         /* Extra small mobile devices */
         @media (max-width: 480px) {
             .input-area {
-                padding: 12px;
+                padding: 12px !important;
+                background: var(--panel-bg) !important;
+                border-top: 2px solid var(--border) !important;
+                position: sticky !important;
+                bottom: 0 !important;
+                z-index: 1000 !important;
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.1) !important;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
             }
 
             .input-container {
-                padding: 4px;
-                border-radius: 20px;
+                padding: 4px !important;
+                border-radius: 20px !important;
+                background: var(--input-bg) !important;
+                border: 2px solid var(--border) !important;
+                min-height: 50px !important;
+                display: flex !important;
+                align-items: center !important;
+                gap: 8px !important;
+                visibility: visible !important;
+                opacity: 1 !important;
             }
 
             #messageInput {
-                padding: 14px 16px;
-                font-size: 16px;
+                padding: 14px 16px !important;
+                font-size: 16px !important;
+                flex: 1 !important;
+                border: none !important;
+                background: transparent !important;
+                outline: none !important;
+                color: var(--text-primary) !important;
+                min-height: 20px !important;
+                line-height: 1.4 !important;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+
+            #messageInput::placeholder {
+                color: var(--muted) !important;
+                opacity: 0.7 !important;
             }
 
             .send-button {
-                padding: 14px 18px;
-                font-size: 16px;
-                min-width: 60px;
+                padding: 14px 18px !important;
+                font-size: 16px !important;
+                min-width: 60px !important;
+                min-height: 44px !important;
+                background: linear-gradient(145deg, var(--accent-1), var(--accent-2)) !important;
+                border: none !important;
+                border-radius: 20px !important;
+                color: white !important;
+                cursor: pointer !important;
+                font-weight: 500 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                visibility: visible !important;
+                opacity: 1 !important;
             }
 
             .chat-area {
-                padding: 12px;
+                padding: 12px !important;
+                flex: 1 !important;
+                overflow-y: auto !important;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 15px !important;
             }
 
             .message-bubble {
-                max-width: 90%;
-                padding: 12px 16px;
+                max-width: 90% !important;
+                padding: 12px 16px !important;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
             }
         }
