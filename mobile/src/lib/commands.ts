@@ -11,6 +11,10 @@ export type CommandName =
   | 'setProxy'
   // v1 skips quiz feature implementation; kept for future parity
   | 'quiz'
+  | 'help'
+  | 'logout'
+  | 'profile'
+  | 'settings'
   | 'unknown';
 
 export type ParsedCommand = {
@@ -39,6 +43,10 @@ export const COMMANDS: CommandDef[] = [
   { name: '.setProxy', hint: 'Set Gemini proxy', aliases: ['proxy'] },
   // keep quiz for future
   { name: '.quiz', hint: 'Start a quiz (.quiz.math)', aliases: ['q'] },
+  { name: '.help', hint: 'Show available commands', aliases: ['h','?'] },
+  { name: '.logout', hint: 'Logout from your account', aliases: ['l','signout'] },
+  { name: '.profile', hint: 'View and edit your profile', aliases: ['p','user'] },
+  { name: '.settings', hint: 'Open app settings', aliases: ['config','options'] },
 ];
 
 // Normalize a leading dot-command to a canonical CommandName
@@ -55,6 +63,10 @@ export function normalizeCommandName(cmd: string): CommandName {
   if (s.startsWith('.setendpoint ')) return 'setEndpoint';
   if (s.startsWith('.setproxy ')) return 'setProxy';
   if (s.startsWith('.quiz') || s === '.quiz') return 'quiz';
+  if (s === '.help' || s.startsWith('.help')) return 'help';
+  if (s === '.logout' || s.startsWith('.logout') || s === '.signout' || s.startsWith('.signout')) return 'logout';
+  if (s === '.profile' || s.startsWith('.profile') || s === '.user' || s.startsWith('.user')) return 'profile';
+  if (s === '.settings' || s.startsWith('.settings') || s === '.config' || s.startsWith('.config')) return 'settings';
   return 'unknown';
 }
 
@@ -115,6 +127,22 @@ export function parseCommand(raw: string): ParsedCommand {
     }
     case 'quiz': {
       args = trimmed.slice('.quiz'.length).trim();
+      break;
+    }
+    case 'help': {
+      args = trimmed.slice('.help'.length).trim();
+      break;
+    }
+    case 'logout': {
+      args = trimmed.slice('.logout'.length).trim();
+      break;
+    }
+    case 'profile': {
+      args = trimmed.slice('.profile'.length).trim();
+      break;
+    }
+    case 'settings': {
+      args = trimmed.slice('.settings'.length).trim();
       break;
     }
     default: {
