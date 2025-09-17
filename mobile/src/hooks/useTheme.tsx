@@ -66,7 +66,9 @@ const createRNCompatibleTheme = (cssVars: Record<string, string>): Theme => {
     peelBg: cssVars['--peel-bg']?.includes('linear-gradient') ? '#f8f9fa' : cssVars['--peel-bg'] || '#f8f9fa',
     chatAssistantBg: cssVars['--chat-assistant-bg']?.includes('linear-gradient') ? '#f8f9fa' : cssVars['--chat-assistant-bg'] || '#f8f9fa',
     chatSystemBg: cssVars['--chat-system-bg']?.includes('linear-gradient') ? '#e3f2fd' : cssVars['--chat-system-bg'] || '#e3f2fd',
-    userBubbleBg: cssVars['--user-bubble-bg']?.includes('linear-gradient') ? '#667eea' : cssVars['--user-bubble-bg'] || '#667eea',
+    userBubbleBg: cssVars['--user-bubble-bg']?.includes('linear-gradient')
+      ? cssVars['--user-bubble-bg']?.match(/#[0-9a-f]{6}|#[0-9a-f]{3}/gi)?.[0] || '#667eea'
+      : cssVars['--user-bubble-bg'] || '#667eea',
     inputBg: cssVars['--input-bg'] || '#f8f9fa',
     border: cssVars['--border'] || 'rgba(0,0,0,0.08)',
     notesOverlayBg: cssVars['--notes-overlay-bg'] || 'rgba(255,255,255,0.96)',
