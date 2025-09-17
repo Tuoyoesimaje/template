@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build && npm run copy-html",
     "build:production": "vite build && npm run copy-html",
-    "copy-html": "node -e \"const fs = require('fs'); ['login.html', 'signup.html', 'profile.html'].forEach(f => fs.copyFileSync(f, 'dist/' + f));\"",
+    "copy-html": "node -e \"const fs = require('fs'); ['login.html', 'signup.html', 'profile.html', 'src/styles/style.css'].forEach(f => { const dest = 'dist/' + f; const dir = dest.substring(0, dest.lastIndexOf('/')); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); fs.copyFileSync(f, dest); });\"",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
