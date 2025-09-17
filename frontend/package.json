@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:production": "vite build",
+    "build": "vite build && npm run copy-html",
+    "build:production": "vite build && npm run copy-html",
+    "copy-html": "copy login.html dist\\ && copy signup.html dist\\ && copy profile.html dist\\",
     "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
