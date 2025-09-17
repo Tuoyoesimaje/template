@@ -5,6 +5,18 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/login.html",
+      "destination": "/login.html"
+    },
+    {
+      "source": "/signup.html",
+      "destination": "/signup.html"
+    },
+    {
+      "source": "/profile.html",
+      "destination": "/profile.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
