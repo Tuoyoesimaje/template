@@ -21,6 +21,12 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
+      input: {
+        main: './index.html',
+        login: './src/pages/login.js',
+        signup: './src/pages/signup.js',
+        profile: './src/pages/profile.js'
+      },
       output: {
         manualChunks: undefined,
       }
