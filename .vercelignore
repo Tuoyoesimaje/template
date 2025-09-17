@@ -1,0 +1,18 @@
+# Ignore everything except frontend for Vercel deployments
+backend/
+mobile/
+src/
+.github/
+*.md
+package.json
+package-lock.json
+render.yaml
+devstart.js
+server.js
+app.js
+.env
+.env.example
+.env.production
+
+# Only include frontend files
+!frontend/

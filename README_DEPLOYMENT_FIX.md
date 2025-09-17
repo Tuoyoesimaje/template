@@ -78,44 +78,70 @@ ALLOWED_ORIGINS=https://your-frontend.vercel.app
 ```
 
 #### **Step 2: Deploy Frontend to Vercel**
-1. **Create NEW Vercel Project**
-2. **Set Root Directory to: `frontend/`** (This is crucial!)
-3. **Framework Preset: Vite**
+1. **Create NEW Vercel Project** (don't reuse existing)
+2. **CRITICAL STEP**: Set **Root Directory** to: `frontend/` (This is the key!)
+3. **Framework Preset: Vite** (select manually if not auto-detected)
 4. **Build Settings:**
    - Build Command: `npm run build`
    - Output Directory: `dist`
-5. **Environment Variables** (choose one method):
+   - Install Command: `npm install`
 
-   **Method A: Vercel Dashboard (Recommended)**
-   - Go to Project Settings → Environment Variables
+5. **Environment Variables** (VERY IMPORTANT):
+   - Go to **Project Settings → Environment Variables**
    - Add: `VITE_API_BASE_URL` = `https://your-render-backend.onrender.com`
 
-   **Method B: .env file**
-   - Update `frontend/.env` with your production backend URL:
-   ```bash
-   VITE_API_BASE_URL=https://your-render-backend.onrender.com
-   ```
-   - Commit and push the updated .env file
+6. **Verify Configuration**:
+   - **Root Directory**: `frontend/` (NOT the entire repository!)
+   - **Framework**: Vite
+   - **Build Command**: `npm run build`
+   - **Output Directory**: `dist`
 
-6. **Deploy**: Vercel will automatically build and deploy
+### 🚨 **WHY YOU'RE SEEING HTML ONLY:**
+
+You're deploying the **entire repository** instead of just the `frontend/` folder. When you set **Root Directory** to `frontend/`, Vercel will:
+
+- ✅ Only build the frontend code
+- ✅ Use the correct `frontend/package.json`
+- ✅ Find the correct `frontend/vercel.json`
+- ✅ Build with Vite properly
+- ✅ Serve the CSS and JS assets correctly
+
+### 🚨 **If Still Showing Just HTML:**
+
+**Delete the current Vercel project and create a new one** with these exact settings:
+
+```
+Project Name: alfred-ai-frontend
+Framework: Vite (manual selection)
+Root Directory: frontend/
+Build Command: npm run build
+Output Directory: dist
+Environment Variables:
+  VITE_API_BASE_URL = https://your-render-backend.onrender.com
+```
+
+**Check Vercel Build Logs** after deployment for any errors.
 
 #### **Step 3: Update CORS** (after both are deployed)
 Update the backend's `ALLOWED_ORIGINS` with your actual Vercel URL.
 
-### 🎯 **Result**
+### 🎯 **Final Result**
 - **Backend**: `https://your-backend.onrender.com` (API only)
-- **Frontend**: `https://your-frontend.vercel.app` (web app)
+- **Frontend**: `https://your-frontend.vercel.app` (web app with full CSS/JS)
 - **No static file conflicts** ✅
-   - In Render backend settings, update `ALLOWED_ORIGINS` with your Vercel URL
 
 ## Why This Happened
 
 The render.yaml file is configured for multi-service deployment, but when you deploy the entire repository as a single service, Render gets confused about what to serve. The backend should be deployed as a separate Node.js service, not as part of the monorepo.
 
-## Result
+## Success Indicators
 
-After following these steps, you'll have:
-- **Backend API**: `https://your-backend.onrender.com` (Node.js server)
-- **Frontend**: `https://your-frontend.vercel.app` (Static site)
+✅ **Page loads with styling** (not just HTML)
+✅ **JavaScript functionality works**
+✅ **No console errors**
+✅ **Assets load from `/assets/` path**
+✅ **API calls work** (check Network tab)
 
-The frontend will communicate with the backend API seamlessly! 🎉
+---
+
+**See `VERCEL_DEPLOYMENT_TROUBLESHOOTING.md` for detailed troubleshooting steps!**

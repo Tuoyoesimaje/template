@@ -1,0 +1,17 @@
+# Ignore everything except frontend files
+../*
+../../*
+../../../*
+
+# Keep only frontend files
+!src/
+!public/
+!index.html
+!login.html
+!profile.html
+!signup.html
+!package.json
+!vite.config.js
+!vercel.json
+!.env
+!.env.example
