@@ -7,6 +7,29 @@ export type ThemeName = 'light' | 'dark' | 'blue' | 'green' | 'pink' | 'gray' | 
 
 export interface Theme {
   name: ThemeName;
+  // React Native compatible properties
+  bgGradient: string;
+  panelBg: string;
+  textPrimary: string;
+  muted: string;
+  accent1: string;
+  accent2: string;
+  peelBg: string;
+  chatAssistantBg: string;
+  chatSystemBg: string;
+  userBubbleBg: string;
+  inputBg: string;
+  border: string;
+  notesOverlayBg: string;
+  peelSoonBg: string;
+  peelOverdueBg: string;
+  peelIndicatorSoon: string;
+  peelIndicatorOverdue: string;
+  systemText: string;
+  assistantText: string;
+  userText: string;
+  messageText: string;
+  // CSS variables for backward compatibility
   '--bg-gradient': string;
   '--panel-bg': string;
   '--text-primary'?: string;
@@ -29,8 +52,44 @@ export interface Theme {
   '--user-text'?: string;
 }
 
+// Helper function to create React Native compatible theme from CSS variables
+const createRNCompatibleTheme = (cssVars: Record<string, string>): Theme => {
+  const theme = {
+    name: cssVars.name as ThemeName,
+    // React Native compatible properties (extract colors from CSS variables)
+    bgGradient: cssVars['--bg-gradient']?.includes('linear-gradient') ? '#f5f7fa' : cssVars['--bg-gradient'] || '#f5f7fa',
+    panelBg: cssVars['--panel-bg'] || '#ffffff',
+    textPrimary: cssVars['--text-primary'] || '#2c3e50',
+    muted: cssVars['--muted'] || '#6c757d',
+    accent1: cssVars['--accent-1'] || '#667eea',
+    accent2: cssVars['--accent-2'] || '#764ba2',
+    peelBg: cssVars['--peel-bg']?.includes('linear-gradient') ? '#f8f9fa' : cssVars['--peel-bg'] || '#f8f9fa',
+    chatAssistantBg: cssVars['--chat-assistant-bg']?.includes('linear-gradient') ? '#f8f9fa' : cssVars['--chat-assistant-bg'] || '#f8f9fa',
+    chatSystemBg: cssVars['--chat-system-bg']?.includes('linear-gradient') ? '#e3f2fd' : cssVars['--chat-system-bg'] || '#e3f2fd',
+    userBubbleBg: cssVars['--user-bubble-bg']?.includes('linear-gradient') ? '#667eea' : cssVars['--user-bubble-bg'] || '#667eea',
+    inputBg: cssVars['--input-bg'] || '#f8f9fa',
+    border: cssVars['--border'] || 'rgba(0,0,0,0.08)',
+    notesOverlayBg: cssVars['--notes-overlay-bg'] || 'rgba(255,255,255,0.96)',
+    peelSoonBg: cssVars['--peel-soon-bg']?.includes('linear-gradient') ? '#f8f9fa' : cssVars['--peel-soon-bg'] || '#f8f9fa',
+    peelOverdueBg: cssVars['--peel-overdue-bg']?.includes('linear-gradient') ? '#ffe6e6' : cssVars['--peel-overdue-bg'] || '#ffe6e6',
+    peelIndicatorSoon: cssVars['--peel-indicator-soon'] || '#667eea',
+    peelIndicatorOverdue: cssVars['--peel-indicator-overdue'] || '#dc3545',
+    systemText: cssVars['--system-text'] || '#1565c0',
+    assistantText: cssVars['--assistant-text'] || '#2c3e50',
+    userText: cssVars['--user-text'] || '#ffffff',
+    messageText: cssVars['--text-primary'] || '#2c3e50'
+  } as Theme;
+
+  // Add all CSS variables to the theme
+  Object.keys(cssVars).forEach(key => {
+    (theme as any)[key] = cssVars[key];
+  });
+
+  return theme;
+};
+
 export const THEMES: Record<ThemeName, Theme> = {
-  light: {
+  light: createRNCompatibleTheme({
     name: 'light',
     '--bg-gradient': 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
     '--panel-bg': '#ffffff',
@@ -48,8 +107,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#667eea',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  dark: {
+  }),
+  dark: createRNCompatibleTheme({
     name: 'dark',
     '--bg-gradient': 'linear-gradient(135deg,#071021 0%,#06101a 100%)',
     '--panel-bg': '#071021',
@@ -71,8 +130,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-indicator-soon': '#4fb3ff',
     '--peel-indicator-overdue': '#ff7b7b',
     '--notes-overlay-bg': 'rgba(7,16,33,0.95)'
-  },
-  blue: {
+  }),
+  blue: createRNCompatibleTheme({
     name: 'blue',
     '--bg-gradient': 'linear-gradient(135deg,#eef5ff 0%,#e2edff 100%)',
     '--panel-bg': '#ffffff',
@@ -91,8 +150,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffdfe0,#ffd6d6)',
     '--peel-indicator-soon': '#1e63d6',
     '--peel-indicator-overdue': '#d64545'
-  },
-  green: {
+  }),
+  green: createRNCompatibleTheme({
     name: 'green',
     '--bg-gradient': 'linear-gradient(135deg,#f6fff5 0%,#e6f9ea 100%)',
     '--panel-bg': '#ffffff',
@@ -111,8 +170,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#2f855a',
     '--peel-indicator-overdue': '#c24141'
-  },
-  pink: {
+  }),
+  pink: createRNCompatibleTheme({
     name: 'pink',
     '--bg-gradient': 'linear-gradient(135deg,#fff0f7 0%,#ffe6f0 100%)',
     '--panel-bg': '#ffffff',
@@ -131,8 +190,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffdede,#ffcccc)',
     '--peel-indicator-soon': '#f472b6',
     '--peel-indicator-overdue': '#ff6b6b'
-  },
-  gray: {
+  }),
+  gray: createRNCompatibleTheme({
     name: 'gray',
     '--bg-gradient': 'linear-gradient(135deg,#f7f7f8 0%,#ebebec 100%)',
     '--panel-bg': '#ffffff',
@@ -151,8 +210,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffecec,#ffdede)',
     '--peel-indicator-soon': '#6b7280',
     '--peel-indicator-overdue': '#d64545'
-  },
-  purple: {
+  }),
+  purple: createRNCompatibleTheme({
     name: 'purple',
     '--bg-gradient': 'linear-gradient(135deg,#f3e8ff 0%,#e9d5ff 100%)',
     '--panel-bg': '#ffffff',
@@ -171,8 +230,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#8b5cf6',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  orange: {
+  }),
+  orange: createRNCompatibleTheme({
     name: 'orange',
     '--bg-gradient': 'linear-gradient(135deg,#fff7ed 0%,#fed7aa 100%)',
     '--panel-bg': '#ffffff',
@@ -191,8 +250,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#f97316',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  yellow: {
+  }),
+  yellow: createRNCompatibleTheme({
     name: 'yellow',
     '--bg-gradient': 'linear-gradient(135deg,#fefce8 0%,#fde68a 100%)',
     '--panel-bg': '#ffffff',
@@ -211,8 +270,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#f59e0b',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  brown: {
+  }),
+  brown: createRNCompatibleTheme({
     name: 'brown',
     '--bg-gradient': 'linear-gradient(135deg,#f5f5f4 0%,#d6d3d1 100%)',
     '--panel-bg': '#ffffff',
@@ -231,8 +290,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#78716c',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  sunset: {
+  }),
+  sunset: createRNCompatibleTheme({
     name: 'sunset',
     '--bg-gradient': 'linear-gradient(135deg,#fef2f2 0%,#fecaca 100%)',
     '--panel-bg': '#ffffff',
@@ -251,8 +310,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#ef4444',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  ocean: {
+  }),
+  ocean: createRNCompatibleTheme({
     name: 'ocean',
     '--bg-gradient': 'linear-gradient(135deg,#ecfeff 0%,#a5f3fc 100%)',
     '--panel-bg': '#ffffff',
@@ -271,8 +330,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#06b6d4',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  red: {
+  }),
+  red: createRNCompatibleTheme({
     name: 'red',
     '--bg-gradient': 'linear-gradient(135deg,#fef2f2 0%,#fecaca 100%)',
     '--panel-bg': '#ffffff',
@@ -291,8 +350,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#ef4444',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  teal: {
+  }),
+  teal: createRNCompatibleTheme({
     name: 'teal',
     '--bg-gradient': 'linear-gradient(135deg,#f0fdfa 0%,#ccfbf1 100%)',
     '--panel-bg': '#ffffff',
@@ -311,8 +370,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#14b8a6',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  indigo: {
+  }),
+  indigo: createRNCompatibleTheme({
     name: 'indigo',
     '--bg-gradient': 'linear-gradient(135deg,#eef2ff 0%,#c7d2fe 100%)',
     '--panel-bg': '#ffffff',
@@ -331,8 +390,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#818cf8',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  rainbow: {
+  }),
+  rainbow: createRNCompatibleTheme({
     name: 'rainbow',
     '--bg-gradient': 'linear-gradient(135deg,#fef3c7 0%,#a7f3d0 50%,#bfdbfe 100%)',
     '--panel-bg': '#ffffff',
@@ -351,8 +410,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#10b981',
     '--peel-indicator-overdue': '#ef4444'
-  },
-  lime: {
+  }),
+  lime: createRNCompatibleTheme({
     name: 'lime',
     '--bg-gradient': 'linear-gradient(135deg,#f7fee7 0%,#d9f99d 100%)',
     '--panel-bg': '#ffffff',
@@ -371,8 +430,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#84cc16',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  cyan: {
+  }),
+  cyan: createRNCompatibleTheme({
     name: 'cyan',
     '--bg-gradient': 'linear-gradient(135deg,#ecfeff 0%,#cffafe 100%)',
     '--panel-bg': '#ffffff',
@@ -391,8 +450,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#06b6d4',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  rose: {
+  }),
+  rose: createRNCompatibleTheme({
     name: 'rose',
     '--bg-gradient': 'linear-gradient(135deg,#fff1f2 0%,#fce7f3 100%)',
     '--panel-bg': '#ffffff',
@@ -411,8 +470,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#ec4899',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  amber: {
+  }),
+  amber: createRNCompatibleTheme({
     name: 'amber',
     '--bg-gradient': 'linear-gradient(135deg,#fffbeb 0%,#fed7aa 100%)',
     '--panel-bg': '#ffffff',
@@ -431,8 +490,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#f97316',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  emerald: {
+  }),
+  emerald: createRNCompatibleTheme({
     name: 'emerald',
     '--bg-gradient': 'linear-gradient(135deg,#ecfdf5 0%,#a7f3d0 100%)',
     '--panel-bg': '#ffffff',
@@ -451,8 +510,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#10b981',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  sky: {
+  }),
+  sky: createRNCompatibleTheme({
     name: 'sky',
     '--bg-gradient': 'linear-gradient(135deg,#f0f9ff 0%,#bae6fd 100%)',
     '--panel-bg': '#ffffff',
@@ -471,8 +530,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#0ea5e9',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  violet: {
+  }),
+  violet: createRNCompatibleTheme({
     name: 'violet',
     '--bg-gradient': 'linear-gradient(135deg,#f5f3ff 0%,#c4b5fd 100%)',
     '--panel-bg': '#ffffff',
@@ -491,8 +550,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#8b5cf6',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  fuchsia: {
+  }),
+  fuchsia: createRNCompatibleTheme({
     name: 'fuchsia',
     '--bg-gradient': 'linear-gradient(135deg,#fdf4ff 0%,#f0abfc 100%)',
     '--panel-bg': '#ffffff',
@@ -511,8 +570,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#d946ef',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  aurora: {
+  }),
+  aurora: createRNCompatibleTheme({
     name: 'aurora',
     '--bg-gradient': 'linear-gradient(135deg,#ecfdf5 0%,#a5f3fc 50%,#c4b5fd 100%)',
     '--panel-bg': '#ffffff',
@@ -531,8 +590,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#06b6d4',
     '--peel-indicator-overdue': '#ef4444'
-  },
-  forest: {
+  }),
+  forest: createRNCompatibleTheme({
     name: 'forest',
     '--bg-gradient': 'linear-gradient(135deg,#f0fdf4 0%,#d9f99d 30%,#a3a3a3 70%,#92400e 100%)',
     '--panel-bg': '#ffffff',
@@ -551,8 +610,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#16a34a',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  fire: {
+  }),
+  fire: createRNCompatibleTheme({
     name: 'fire',
     '--bg-gradient': 'linear-gradient(135deg,#fef2f2 0%,#fed7aa 40%,#fde68a 70%,#fca5a5 100%)',
     '--panel-bg': '#ffffff',
@@ -571,8 +630,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#f97316',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  ice: {
+  }),
+  ice: createRNCompatibleTheme({
     name: 'ice',
     '--bg-gradient': 'linear-gradient(135deg,#f8fafc 0%,#e2e8f0 30%,#bae6fd 60%,#a5f3fc 100%)',
     '--panel-bg': '#ffffff',
@@ -591,8 +650,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#0ea5e9',
     '--peel-indicator-overdue': '#ef4444'
-  },
-  galaxy: {
+  }),
+  galaxy: createRNCompatibleTheme({
     name: 'galaxy',
     '--bg-gradient': 'linear-gradient(135deg,#2d1b69 0%,#3730a3 30%,#7c3aed 60%,#c026d3 100%)',
     '--panel-bg': '#ffffff',
@@ -611,8 +670,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#8b5cf6',
     '--peel-indicator-overdue': '#ef4444'
-  },
-  desert: {
+  }),
+  desert: createRNCompatibleTheme({
     name: 'desert',
     '--bg-gradient': 'linear-gradient(135deg,#fef3c7 0%,#fed7aa 30%,#d97706 60%,#92400e 100%)',
     '--panel-bg': '#ffffff',
@@ -631,8 +690,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#f97316',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  meadow: {
+  }),
+  meadow: createRNCompatibleTheme({
     name: 'meadow',
     '--bg-gradient': 'linear-gradient(135deg,#f0fdf4 0%,#d9f99d 40%,#fce7f3 70%,#e9d5ff 100%)',
     '--panel-bg': '#ffffff',
@@ -651,8 +710,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#16a34a',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  storm: {
+  }),
+  storm: createRNCompatibleTheme({
     name: 'storm',
     '--bg-gradient': 'linear-gradient(135deg,#1e293b 0%,#334155 30%,#475569 60%,#64748b 100%)',
     '--panel-bg': '#ffffff',
@@ -671,8 +730,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#64748b',
     '--peel-indicator-overdue': '#ef4444'
-  },
-  candy: {
+  }),
+  candy: createRNCompatibleTheme({
     name: 'candy',
     '--bg-gradient': 'linear-gradient(135deg,#fdf2f8 0%,#dbeafe 30%,#fef3c7 60%,#fce7f3 100%)',
     '--panel-bg': '#ffffff',
@@ -691,8 +750,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#3b82f6',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  autumn: {
+  }),
+  autumn: createRNCompatibleTheme({
     name: 'autumn',
     '--bg-gradient': 'linear-gradient(135deg,#fef2f2 0%,#fed7aa 30%,#dc2626 60%,#7c2d12 100%)',
     '--panel-bg': '#ffffff',
@@ -711,8 +770,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#ea580c',
     '--peel-indicator-overdue': '#dc3545'
-  },
-  sunrise: {
+  }),
+  sunrise: createRNCompatibleTheme({
     name: 'sunrise',
     '--bg-gradient': 'linear-gradient(135deg,#fdf2f8 0%,#fed7aa 40%,#fef3c7 70%,#fce7f3 100%)',
     '--panel-bg': '#ffffff',
@@ -731,8 +790,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#f97316',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  twilight: {
+  }),
+  twilight: createRNCompatibleTheme({
     name: 'twilight',
     '--bg-gradient': 'linear-gradient(135deg,#1e1b4b 0%,#312e81 30%,#7c3aed 60%,#db2777 100%)',
     '--panel-bg': '#ffffff',
@@ -751,8 +810,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#4f46e5',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  neon: {
+  }),
+  neon: createRNCompatibleTheme({
     name: 'neon',
     '--bg-gradient': 'linear-gradient(135deg,#0c0a09 0%,#ec4899 30%,#06b6d4 60%,#10b981 100%)',
     '--panel-bg': '#ffffff',
@@ -771,8 +830,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#06b6d4',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  vintage: {
+  }),
+  vintage: createRNCompatibleTheme({
     name: 'vintage',
     '--bg-gradient': 'linear-gradient(135deg,#fef7ed 0%,#d6d3d1 30%,#a8a29e 60%,#78716c 100%)',
     '--panel-bg': '#ffffff',
@@ -791,8 +850,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#a16207',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  tropical: {
+  }),
+  tropical: createRNCompatibleTheme({
     name: 'tropical',
     '--bg-gradient': 'linear-gradient(135deg,#ecfdf5 0%,#d9f99d 30%,#fed7aa 60%,#fce7f3 100%)',
     '--panel-bg': '#ffffff',
@@ -811,8 +870,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#22c55e',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  metallic: {
+  }),
+  metallic: createRNCompatibleTheme({
     name: 'metallic',
     '--bg-gradient': 'linear-gradient(135deg,#f8fafc 0%,#e2e8f0 30%,#f59e0b 60%,#b91c1c 100%)',
     '--panel-bg': '#ffffff',
@@ -831,8 +890,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#fecaca,#fca5a5)',
     '--peel-indicator-soon': '#f59e0b',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  pastel: {
+  }),
+  pastel: createRNCompatibleTheme({
     name: 'pastel',
     '--bg-gradient': 'linear-gradient(135deg,#fdf2f8 0%,#e0e7ff 30%,#f0fdf4 60%,#fef7ed 100%)',
     '--panel-bg': '#ffffff',
@@ -851,8 +910,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-overdue-bg': 'linear-gradient(145deg,#ffe6e6,#ffdede)',
     '--peel-indicator-soon': '#6366f1',
     '--peel-indicator-overdue': '#dc2626'
-  },
-  'dark-blue': {
+  }),
+  'dark-blue': createRNCompatibleTheme({
     name: 'dark-blue',
     '--bg-gradient': 'linear-gradient(135deg,#0f172a 0%,#1e293b 100%)',
     '--panel-bg': '#0f172a',
@@ -874,8 +933,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-indicator-soon': '#3b82f6',
     '--peel-indicator-overdue': '#ef4444',
     '--notes-overlay-bg': 'rgba(15,23,42,0.95)'
-  },
-  'dark-green': {
+  }),
+  'dark-green': createRNCompatibleTheme({
     name: 'dark-green',
     '--bg-gradient': 'linear-gradient(135deg,#0f172a 0%,#1e293b 100%)',
     '--panel-bg': '#0f172a',
@@ -897,8 +956,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-indicator-soon': '#10b981',
     '--peel-indicator-overdue': '#ef4444',
     '--notes-overlay-bg': 'rgba(15,23,42,0.95)'
-  },
-  'dark-purple': {
+  }),
+  'dark-purple': createRNCompatibleTheme({
     name: 'dark-purple',
     '--bg-gradient': 'linear-gradient(135deg,#0f172a 0%,#1e293b 100%)',
     '--panel-bg': '#0f172a',
@@ -920,8 +979,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-indicator-soon': '#8b5cf6',
     '--peel-indicator-overdue': '#ef4444',
     '--notes-overlay-bg': 'rgba(15,23,42,0.95)'
-  },
-  'dark-red': {
+  }),
+  'dark-red': createRNCompatibleTheme({
     name: 'dark-red',
     '--bg-gradient': 'linear-gradient(135deg,#0f172a 0%,#1e293b 100%)',
     '--panel-bg': '#0f172a',
@@ -943,8 +1002,8 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-indicator-soon': '#ef4444',
     '--peel-indicator-overdue': '#f87171',
     '--notes-overlay-bg': 'rgba(15,23,42,0.95)'
-  },
-  'darker-teal': {
+  }),
+  'darker-teal': createRNCompatibleTheme({
     name: 'darker-teal',
     '--bg-gradient': 'linear-gradient(135deg,#0f4c3a 0%,#1e5f4c 100%)',
     '--panel-bg': '#0f4c3a',
@@ -966,7 +1025,7 @@ export const THEMES: Record<ThemeName, Theme> = {
     '--peel-indicator-soon': '#0d9488',
     '--peel-indicator-overdue': '#ef4444',
     '--notes-overlay-bg': 'rgba(15,76,58,0.95)'
-  }
+  })
 };
 
 type ThemeContextType = {

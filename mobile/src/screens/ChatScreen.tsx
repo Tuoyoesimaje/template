@@ -11,7 +11,8 @@ import {
   Platform,
   Modal,
   TouchableOpacity,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated
 } from 'react-native';
 import { parseCommand, suggestCommands, CommandDef } from '../lib/commands';
 import { postGemini, apiPost, apiGet } from '../lib/core';
@@ -28,6 +29,13 @@ type Props = {
   navigation: { navigate: (route: string, params?: any) => void };
 };
 
+type Reminder = {
+  id: string;
+  title: string;
+  dueDate: string;
+  completed: boolean;
+};
+
 export default function ChatScreen({ navigation }: Props) {
   const { theme, setTheme, availableThemes } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -35,13 +43,18 @@ export default function ChatScreen({ navigation }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<CommandDef[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminderPanelOpen, setReminderPanelOpen] = useState(false);
+  const [currentReminderText, setCurrentReminderText] = useState('');
   const flatListRef = useRef<FlatList>(null);
+  const peelAnimation = useRef(new Animated.Value(0)).current;
 
   // Create themed styles based on current theme
   const themedStyles = createThemedStyles(theme);
 
   useEffect(() => {
     loadMessages();
+    loadReminders();
   }, []);
 
   // Add welcome message if no messages exist
@@ -91,6 +104,61 @@ export default function ChatScreen({ navigation }: Props) {
         content: 'Unable to load message history. Please check your connection.',
         created_at: new Date().toISOString()
       }]);
+    }
+  };
+
+  const loadReminders = async () => {
+    try {
+      const result = await apiGet('reminders');
+      if (Array.isArray(result)) {
+        setReminders(result);
+        updateCurrentReminderText(result);
+      }
+    } catch (e) {
+      console.warn('Failed to load reminders:', e);
+    }
+  };
+
+  const updateCurrentReminderText = (reminderList: Reminder[]) => {
+    const now = new Date();
+    const upcomingReminders = reminderList
+      .filter(r => !r.completed && new Date(r.dueDate) > now)
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+    if (upcomingReminders.length > 0) {
+      const nextReminder = upcomingReminders[0];
+      const timeDiff = new Date(nextReminder.dueDate).getTime() - now.getTime();
+      const hoursLeft = Math.ceil(timeDiff / (1000 * 60 * 60));
+
+      if (hoursLeft <= 2) {
+        setCurrentReminderText(`${nextReminder.title} due in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}`);
+      } else {
+        setCurrentReminderText(`${nextReminder.title} due soon`);
+      }
+    } else {
+      setCurrentReminderText('No upcoming reminders');
+    }
+  };
+
+  const toggleReminderPanel = () => {
+    const toValue = reminderPanelOpen ? 0 : 1;
+    Animated.timing(peelAnimation, {
+      toValue,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+    setReminderPanelOpen(!reminderPanelOpen);
+  };
+
+  const markReminderComplete = async (reminderId: string) => {
+    try {
+      await apiPost(`reminders/${reminderId}/complete`, {});
+      setReminders(prev => prev.map(r =>
+        r.id === reminderId ? { ...r, completed: true } : r
+      ));
+      updateCurrentReminderText(reminders.filter(r => r.id !== reminderId || !r.completed));
+    } catch (e) {
+      console.warn('Failed to mark reminder complete:', e);
     }
   };
 
@@ -229,8 +297,69 @@ export default function ChatScreen({ navigation }: Props) {
     </View>
   );
 
+  // Debug: Log messages to console for visibility issues
+  useEffect(() => {
+    console.log('Current messages:', messages);
+    console.log('Current theme:', theme?.name);
+  }, [messages, theme]);
+
   return (
     <SafeAreaView style={themedStyles.container}>
+      {/* Reminder Peel Bar */}
+      <Animated.View style={[
+        themedStyles.peelBar,
+        {
+          transform: [{
+            translateY: peelAnimation.interpolate({
+              inputRange: [0, 1],
+              outputRange: [-60, 0]
+            })
+          }]
+        }
+      ]}>
+        <Pressable style={themedStyles.peelContent} onPress={toggleReminderPanel}>
+          <Text style={themedStyles.peelText}>{currentReminderText}</Text>
+          <View style={themedStyles.peelIndicator} />
+        </Pressable>
+      </Animated.View>
+
+      {/* Reminder Panel */}
+      <Animated.View style={[
+        themedStyles.reminderPanel,
+        {
+          maxHeight: peelAnimation.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 200]
+          })
+        }
+      ]}>
+        <View style={themedStyles.reminderList}>
+          {reminders.filter(r => !r.completed).length === 0 ? (
+            <Text style={themedStyles.noRemindersText}>No active reminders</Text>
+          ) : (
+            reminders
+              .filter(r => !r.completed)
+              .slice(0, 3)
+              .map((reminder) => (
+                <View key={reminder.id} style={themedStyles.reminderItem}>
+                  <View style={themedStyles.reminderInfo}>
+                    <Text style={themedStyles.reminderTitle}>{reminder.title}</Text>
+                    <Text style={themedStyles.reminderDue}>
+                      Due: {new Date(reminder.dueDate).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={themedStyles.completeButton}
+                    onPress={() => markReminderComplete(reminder.id)}
+                  >
+                    <Text style={themedStyles.completeButtonText}>✓</Text>
+                  </Pressable>
+                </View>
+              ))
+          )}
+        </View>
+      </Animated.View>
+
       <KeyboardAvoidingView
         style={themedStyles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -429,11 +558,15 @@ const createThemedStyles = (theme: any) => StyleSheet.create({
   },
   userMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: theme.userBubbleBg || theme['--user-bubble-bg'] || '#667eea'
+    backgroundColor: theme.userBubbleBg || theme['--user-bubble-bg'] || '#667eea',
+    borderWidth: 1,
+    borderColor: 'transparent'
   },
   assistantMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: theme.chatAssistantBg || theme['--chat-assistant-bg'] || '#f8f9fa'
+    backgroundColor: theme.chatAssistantBg || theme['--chat-assistant-bg'] || '#f8f9fa',
+    borderWidth: 1,
+    borderColor: theme.border || theme['--border'] || '#e9ecef'
   },
   messageText: {
     fontSize: 16,
@@ -441,10 +574,12 @@ const createThemedStyles = (theme: any) => StyleSheet.create({
     color: theme.messageText || theme['--message-text'] || theme.textPrimary || theme['--text-primary'] || '#2c3e50'
   },
   userMessageText: {
-    color: theme.userText || theme['--user-text'] || '#ffffff'
+    color: theme.userText || theme['--user-text'] || '#ffffff',
+    fontWeight: '500'
   },
   assistantMessageText: {
-    color: theme.assistantText || theme['--assistant-text'] || '#2c3e50'
+    color: theme.assistantText || theme['--assistant-text'] || theme.textPrimary || theme['--text-primary'] || '#2c3e50',
+    fontWeight: '400'
   },
   inputContainer: {
     flexDirection: 'row',
@@ -518,5 +653,97 @@ const createThemedStyles = (theme: any) => StyleSheet.create({
     color: theme.muted || theme['--muted'] || '#6c757d',
     marginTop: 4,
     textAlign: 'right'
+  },
+  // Reminder Peel Bar Styles
+  peelBar: {
+    backgroundColor: theme.peelBg || theme['--peel-bg'] || '#ffffff',
+    borderRadius: 25,
+    marginHorizontal: 20,
+    marginTop: 15,
+    marginBottom: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: theme.border || theme['--border'] || '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 15,
+    elevation: 5,
+    zIndex: 10
+  },
+  peelContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  peelText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.textPrimary || theme['--text-primary'] || '#2c3e50',
+    flex: 1
+  },
+  peelIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.muted || theme['--muted'] || '#6c757d'
+  },
+  // Reminder Panel Styles
+  reminderPanel: {
+    backgroundColor: theme.panelBg || theme['--panel-bg'] || '#ffffff',
+    marginHorizontal: 20,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: theme.border || theme['--border'] || '#e9ecef',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 15,
+    elevation: 3,
+    overflow: 'hidden'
+  },
+  reminderList: {
+    padding: 20
+  },
+  noRemindersText: {
+    fontSize: 14,
+    color: theme.muted || theme['--muted'] || '#6c757d',
+    textAlign: 'center',
+    fontStyle: 'italic'
+  },
+  reminderItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border || theme['--border'] || '#f1f3f4'
+  },
+  reminderInfo: {
+    flex: 1
+  },
+  reminderTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.textPrimary || theme['--text-primary'] || '#2c3e50',
+    marginBottom: 4
+  },
+  reminderDue: {
+    fontSize: 12,
+    color: theme.muted || theme['--muted'] || '#6c757d'
+  },
+  completeButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: theme.accent1 || theme['--accent-1'] || '#667eea',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  completeButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: 'bold'
   }
 });
