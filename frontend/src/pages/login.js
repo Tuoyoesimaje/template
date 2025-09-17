@@ -1,0 +1,80 @@
+// Login page JavaScript
+import { API_ROOT, AUTH_TOKEN_KEY } from '../utils/authHelpers.js';
+
+const qaChat = document.getElementById('qaChat');
+const qaInput = document.getElementById('qaInput');
+const qaNext = document.getElementById('qaNext');
+const loginMsg = document.getElementById('loginMsg');
+
+const steps = [
+  { id: 'welcome', prompt: 'Welcome. Type .login to sign in, .signup to create an account, or press Next to begin.' },
+  { id: 'email', prompt: "What's your email?", key: 'email', required: true },
+  { id: 'password', prompt: "What's your password?", key: 'password', required: true, type: 'password' }
+];
+const answers = {};
+let idx = 0;
+
+// single prompt element (we update text instead of stacking prompts)
+const promptWrapper = document.createElement('div');
+promptWrapper.className = 'qa-prompt-wrapper'; promptWrapper.style.marginBottom = '8px';
+const promptInner = document.createElement('div'); promptInner.className = 'qa-prompt';
+promptWrapper.appendChild(promptInner);
+qaChat.appendChild(promptWrapper);
+
+function renderUser(text) {
+  const d = document.createElement('div'); d.className = 'qa-user-wrapper'; d.style.marginBottom='8px'; d.innerHTML = `<div class="qa-user">${text}</div>`; qaChat.appendChild(d); qaChat.scrollTop = qaChat.scrollHeight;
+}
+
+function showStep() {
+  const s = steps[idx];
+  qaInput.type = s.type === 'password' ? 'password' : 'text';
+  qaInput.value = '';
+  // for better UX use a friendly transitional prompt for password step
+  if (s.id === 'password' && answers.email) {
+    promptInner.textContent = "All that's left is your password.";
+    qaInput.placeholder = "Enter your password";
+  } else {
+    promptInner.textContent = s.prompt;
+    qaInput.placeholder = s.id === 'welcome' ? 'Type a command (.login/.signup) or press Next' : s.prompt;
+  }
+  qaChat.scrollTop = qaChat.scrollHeight;
+  qaInput.focus();
+}
+
+async function finishLogin() {
+  loginMsg.textContent = 'Logging in...';
+  try {
+    const r = await fetch(`${API_ROOT.replace(/\/$/, '')}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: answers.email, password: answers.password }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j && j.error ? j.error : 'Login failed');
+    localStorage.setItem(AUTH_TOKEN_KEY, j.token);
+    localStorage.setItem('sa_seen_onboarding', '1');
+    // show a short welcome-back in the chat area before redirecting
+    const name = (j && j.user && j.user.name) || (answers.email && answers.email.split('@')[0]) || 'there';
+    promptInner.textContent = `Welcome back, ${name}.`;
+    loginMsg.textContent = '';
+    // small delay so user sees message
+    setTimeout(()=> location.href = '/', 900);
+  } catch (e) {
+    loginMsg.textContent = 'Login failed: ' + String(e);
+  }
+}
+
+qaNext.addEventListener('click', ()=>{
+  const s = steps[idx];
+  const val = qaInput.value.trim();
+  if (s.required && !val) { loginMsg.textContent = 'This field is required.'; qaInput.focus(); return; }
+  loginMsg.textContent = '';
+if (s.key) { answers[s.key] = val; renderUser(val && (s.type==='password' ? '••••••' : val)); }
+  // dot-command handling: allow user to type commands like .signup or .back
+  if (val && val.startsWith('.')) {
+    const cmd = val.slice(1).toLowerCase();
+    if (cmd === 'signup' || cmd === 'create') { location.href = '/signup.html'; return; }
+    if (cmd === 'back' || cmd === 'home') { location.href = '/'; return; }
+  }
+  if (idx < steps.length - 1) { idx++; showStep(); } else { renderUser('Submitted.'); finishLogin(); }
+});
+
+// start
+showStep();
+qaInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') qaNext.click(); });
