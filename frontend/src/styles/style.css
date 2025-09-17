@@ -44,17 +44,88 @@
 
 /* stronger mobile tweaks for auth pages */
 @media (max-width: 480px) {
-    .auth-page { padding: 12px; }
-    .auth-container { width: 100%; max-width: 95vw; margin: 8px auto; padding: 12px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-    .qa-chat { min-height: 80px; padding: 8px; gap: 6px; }
-    .qa-prompt { font-size: 15px; padding: 8px 10px; border-radius: 10px; }
-    .qa-user { font-size: 15px; padding: 8px 10px; }
-    #qaInput { font-size: 16px; padding: 12px 10px; border-radius: 10px; }
-    .btn-quiz, .btn { font-size: 16px; padding: 12px; border-radius: 10px; }
-    .qa-controls { gap: 8px; }
-    .auth-container h2 { font-size: 1.1rem; }
+    .auth-page { padding: 8px; }
+    .auth-container {
+        width: 100%;
+        max-width: 98vw;
+        margin: 4px auto;
+        padding: 16px;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .qa-chat { min-height: 60px; padding: 12px; gap: 8px; }
+    .qa-prompt {
+        font-size: 16px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        max-width: 100%;
+        word-wrap: break-word;
+    }
+    .qa-user {
+        font-size: 16px;
+        padding: 12px 16px;
+        max-width: 100%;
+        word-wrap: break-word;
+    }
+    #qaInput {
+        font-size: 16px;
+        padding: 16px 14px;
+        border-radius: 12px;
+        min-height: 48px;
+        border: 2px solid var(--border);
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .btn-quiz, .btn {
+        font-size: 16px;
+        padding: 16px 20px;
+        border-radius: 12px;
+        min-height: 48px;
+        font-weight: 600;
+        width: 100%;
+        margin: 4px 0;
+    }
+    .qa-controls { gap: 12px; flex-direction: column; }
+    .auth-container h2 { font-size: 1.2rem; margin-bottom: 16px; }
     /* reduce heavy shadows on mobile to keep it light-weight */
-    .auth-container, .qa-chat { box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
+    .auth-container, .qa-chat { box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
+
+    /* Better input styling for mobile */
+    .auth-container input, .auth-container textarea {
+        font-size: 16px;
+        padding: 16px 14px;
+        border-radius: 12px;
+        border: 2px solid var(--border);
+        min-height: 48px;
+        width: 100%;
+        box-sizing: border-box;
+        background: var(--input-bg);
+        color: var(--text-primary);
+        transition: border-color 0.2s ease;
+    }
+
+    .auth-container input:focus, .auth-container textarea:focus {
+        outline: none;
+        border-color: var(--accent-1);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    /* Ensure buttons are properly sized for touch */
+    .actions-row {
+        gap: 8px;
+        flex-direction: column;
+    }
+
+    .actions-row input {
+        min-height: 48px;
+        font-size: 16px;
+    }
+
+    .actions-row .btn-quiz {
+        min-height: 48px;
+        font-size: 16px;
+        padding: 14px 16px;
+    }
 }
 
 /* actions-row: input + buttons wrapper improvements */
