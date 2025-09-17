@@ -10,8 +10,8 @@ export const fetchFn: typeof fetch = (globalThis as any).fetch || (fetchOrig as 
 export const AUTH_TOKEN_KEY = 'sa_auth_token';
 const API_ROOT_KEY = 'sa_api_root';
 
-const DEFAULT_ANDROID_API = 'https://alfred-ai-backend.onrender.com';
-const DEFAULT_IOS_API = 'https://alfred-ai-backend.onrender.com';
+const DEFAULT_ANDROID_API = 'https://alfred-ai-73gj.onrender.com';
+const DEFAULT_IOS_API = 'https://alfred-ai-73gj.onrender.com';
 
 export async function getSavedApiRoot(): Promise<string | null> {
   try {
