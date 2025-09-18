@@ -2024,6 +2024,10 @@
                 cleanTitle = cleanTitle.replace(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+\d{1,2}(?::\d{2})?\s*(am|pm)/gi, '');
                 cleanTitle = cleanTitle.replace(/\bin\s+\d+\s+(hour|hours|minute|minutes|day|days|week|weeks)/gi, '');
                 cleanTitle = cleanTitle.replace(/\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)/gi, '');
+                // Additional patterns for different orders
+                cleanTitle = cleanTitle.replace(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, '');
+                cleanTitle = cleanTitle.replace(/\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)?/gi, '');
+                cleanTitle = cleanTitle.replace(/\b\d{1,2}(?::\d{2})?\s*(am|pm)\b/gi, '');
             }
 
             // Remove priority keywords
@@ -2231,7 +2235,7 @@
         } catch (e) { /* ignore */ }
         try {
             const rs = await apiGet('reminders');
-            reminders = Array.isArray(rs) ? rs.map(r=>({ title: r.title, dueDate: r.dueDate || formatTimestamp(r.timestamp), timestamp: r.timestamp, status: r.status || computeStatusFromTimestamp(r.timestamp, r.dueDate), id: r.id })) : reminders;
+            reminders = Array.isArray(rs) ? rs.map(r=>({ title: r.title, dueDate: r.dueDate || formatTimestamp(r.timestamp), timestamp: r.timestamp, status: computeStatusFromTimestamp(r.timestamp, r.dueDate), id: r.id })) : reminders;
         } catch (e) { /* ignore */ }
         persistAndRefresh();
     }
