@@ -1061,11 +1061,7 @@
                 const n = JSON.parse(localStorage.getItem('sa_notes') || 'null');
                 const theme = localStorage.getItem('sa_theme') || 'light';
 
-                reminders = Array.isArray(r) ? r : [
-                    { title: 'Math Quiz', dueDate: 'Today 3:00 PM', status: 'soon' },
-                    { title: 'Essay Draft', dueDate: 'Tomorrow 11:59 PM', status: 'pending' },
-                    { title: 'Lab Report', dueDate: 'Yesterday', status: 'overdue' }
-                ];
+                reminders = Array.isArray(r) ? r : [];
 
                 notes = Array.isArray(n) ? n : [];
                 applyTheme(theme, false);
