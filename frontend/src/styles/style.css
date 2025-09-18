@@ -396,7 +396,7 @@
             transition: all 0.3s ease;
             border: 1px solid var(--border);
             position: fixed;
-            top: 60px; /* Position below the sticky peel bar */
+            top: 50px; /* Position below the sticky peel bar */
             left: 20px;
             right: 20px;
             z-index: 99;
