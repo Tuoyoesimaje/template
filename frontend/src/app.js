@@ -2603,33 +2603,45 @@
         }
 
         // =====================
-        // Quiz: Gemini API + fallback
+        // Quiz: Resilient API with fallback
         // =====================
         async function runQuizTopic(topic, rawCommand) {
             addMessage(`Generating quiz for topic: ${escapeHtml(topic)}...`, 'assistant');
-            const apiKey = getApiKey();
-            let quiz = null;
             const count = quizDesiredCount || 10;
 
             // reset UI counters
             quizScore = 0; quizStreak = 0; currentQuestionIndex = 0; totalQuizQuestions = 0;
 
-            // Try to fetch a quiz from the configured endpoint (allow server-side proxy to supply API key).
             try {
-                quiz = await fetchGeminiQuiz(apiKey, topic, count);
-            } catch (e) {
-                console.warn('Gemini API failed or not available, falling back to demo quiz.', e);
-                quiz = null;
-            }
+                // Use the new resilient quiz service via backend API
+                const response = await apiPost('generate-quiz', { topic, count });
 
-            if (!quiz) {
-                // fallback to demo topic if available, duplicate items to reach count
+                if (response.success && response.quiz && Array.isArray(response.quiz)) {
+                    // Start quiz with the generated questions
+                    currentQuiz = response.quiz;
+                    totalQuizQuestions = response.quiz.length;
+
+                    // Show source information if using fallback
+                    if (response.source === 'fallback') {
+                        addMessage('ℹ️ Using pre-built quiz due to high demand. Full AI generation will resume shortly.', 'assistant');
+                    } else {
+                        addMessage('Quiz ready. Answer the questions inside chat.', 'assistant');
+                    }
+
+                    showQuizQuestion();
+                } else {
+                    throw new Error('Invalid quiz response format');
+                }
+            } catch (error) {
+                console.error('Quiz generation failed:', error);
+
+                // Fallback to local demo quiz
+                let quiz = [];
                 if (quizData[topic]) {
                     quiz = quizData[topic].slice(0, count);
                     while (quiz.length < count) quiz = quiz.concat(quizData[topic].slice(0, count - quiz.length));
                 } else {
                     // generic demo repeated
-                    quiz = [];
                     const demo = [
                         { question: 'Demo: What is 2+2?', options: ['3','4','5','6'], correct: 1 },
                         { question: 'Demo: Capital of France?', options: ['Berlin','Rome','Paris','Madrid'], correct: 2 },
@@ -2637,13 +2649,13 @@
                     ];
                     while (quiz.length < count) quiz = quiz.concat(demo.slice(0, Math.min(demo.length, count - quiz.length)));
                 }
-            }
 
-            // Start quiz
-            currentQuiz = quiz;
-            totalQuizQuestions = (Array.isArray(quiz) ? quiz.length : 0);
-            addMessage('Quiz ready. Answer the questions inside chat.', 'assistant');
-            showQuizQuestion();
+                currentQuiz = quiz;
+                totalQuizQuestions = quiz.length;
+                addMessage('⚠️ Quiz service temporarily unavailable. Using demo questions.', 'assistant');
+                addMessage('Quiz ready. Answer the questions inside chat.', 'assistant');
+                showQuizQuestion();
+            }
         }
 
     async function fetchGeminiQuiz(apiKey, topic, desiredCount = 10) {

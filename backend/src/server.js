@@ -15,6 +15,9 @@ const PORT = process.env.PORT || 3001;
 const GEMINI_API_URL = process.env.GEMINI_API_URL; // e.g. https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// Trust proxy for proper rate limiting behind Render
+app.set('trust proxy', process.env.TRUST_PROXY || 1);
+
 // Auth secret for JWT - must be set in production
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -156,6 +159,15 @@ const geminiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const quizLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // limit each IP to 5 quiz requests per minute
+  message: { error: 'Too many quiz requests, please wait a minute.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path.includes('/health') // Skip health checks
+});
+
 // Enhanced security headers with Helmet
 app.use(helmet({
   contentSecurityPolicy: {
@@ -204,6 +216,7 @@ app.use('/health', generalLimiter);
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 app.use('/gemini', geminiLimiter);
+app.use('/api/generate-quiz', quizLimiter);
 
 // Health
 app.get('/health', (req, res) => res.json({ ok: true }));
@@ -450,6 +463,87 @@ app.put('/api/reminders/:id', authMiddleware, async (req, res) => {
     res.json({ updated: result.modifiedCount });
   } catch (err) {
     res.status(500).json({ error: String(err) });
+  }
+});
+
+// Enhanced quiz generation endpoint with circuit breaker and fallback
+app.post('/api/generate-quiz', authMiddleware, async (req, res) => {
+  try {
+    const { topic, count = 10 } = req.body || {};
+    const userId = req.user.id;
+
+    // Validate input
+    if (!topic || typeof topic !== 'string') {
+      return res.status(400).json({ error: 'Topic is required and must be a string' });
+    }
+    if (count && (typeof count !== 'number' || count < 1 || count > 20)) {
+      return res.status(400).json({ error: 'Count must be a number between 1 and 20' });
+    }
+
+    // Sanitize input
+    const sanitizedTopic = sanitizeString(topic, 100);
+
+    if (!sanitizedTopic) {
+      return res.status(400).json({ error: 'Topic cannot be empty after sanitization' });
+    }
+
+    // Use the QuizService with circuit breaker
+    const QuizService = require('./services/quizService');
+    const quizService = new QuizService();
+    const quiz = await quizService.generateQuiz(sanitizedTopic, count);
+
+    // Store quiz generation in database for analytics
+    try {
+      await db.collection('quiz_generations').insertOne({
+        user_id: userId,
+        topic: sanitizedTopic,
+        count: count,
+        source: quiz.source || 'ai',
+        created_at: new Date(),
+        questions_count: quiz.questions ? quiz.questions.length : 0
+      });
+    } catch (dbError) {
+      // Don't fail the request if analytics storage fails
+      console.warn('Failed to store quiz analytics:', dbError.message);
+    }
+
+    res.json({
+      success: true,
+      quiz: quiz.questions,
+      source: quiz.source || 'ai',
+      topic: sanitizedTopic,
+      count: quiz.questions ? quiz.questions.length : 0,
+      message: quiz.source === 'fallback'
+        ? 'Using pre-built quiz due to high demand'
+        : 'Quiz generated successfully'
+    });
+
+  } catch (error) {
+    console.error('Quiz generation error:', error);
+    res.status(500).json({
+      error: 'Failed to generate quiz',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Quiz service health and stats endpoint
+app.get('/api/quiz/health', async (req, res) => {
+  try {
+    const QuizService = require('./services/quizService');
+    const quizService = new QuizService();
+    const stats = quizService.getStats();
+
+    res.json({
+      status: 'ok',
+      stats,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      error: error.message
+    });
   }
 });
 
