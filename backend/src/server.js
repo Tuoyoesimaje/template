@@ -719,10 +719,21 @@ app.post('/api/messages', authMiddleware, async (req, res) => {
 app.get('/api/messages', authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const messages = await db.collection('messages')
+    const limit = req.query.limit ? parseInt(req.query.limit, 10) : null;
+
+    let query = db.collection('messages')
       .find({ user_id: userId })
-      .sort({ created_at: 1 })
-      .toArray();
+      .sort({ created_at: -1 }); // Sort by newest first for pagination
+
+    if (limit && limit > 0 && limit <= 1000) {
+      query = query.limit(limit);
+    }
+
+    const messages = await query.toArray();
+
+    // Reverse to get chronological order (oldest first)
+    messages.reverse();
+
     res.json(messages);
   } catch (err) {
     res.status(500).json({ error: String(err) });

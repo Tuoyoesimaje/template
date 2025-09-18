@@ -15,7 +15,7 @@ import {
   Animated,
   StatusBar
 } from 'react-native';
-import { parseCommand, suggestCommands, CommandDef } from '../lib/commands';
+import { parseCommand, suggestCommands, CommandDef, parseSmartReminder, SmartReminderParse } from '../lib/commands';
 import { postGemini, apiPost, apiGet } from '../lib/core';
 import { useTheme } from '../hooks/useTheme';
 
@@ -49,6 +49,7 @@ export default function ChatScreen({ navigation }: Props) {
   const [currentReminderText, setCurrentReminderText] = useState('');
   const flatListRef = useRef<FlatList>(null);
   const peelAnimation = useRef(new Animated.Value(0)).current;
+  const [isNearBottom, setIsNearBottom] = useState(true);
 
   // Quiz state management
   const [currentQuiz, setCurrentQuiz] = useState<any[]>([]);
@@ -179,7 +180,9 @@ export default function ChatScreen({ navigation }: Props) {
 
   const loadMessages = async () => {
     try {
-      const result = await apiGet('messages');
+      // Load recent messages for better performance (last 50 messages)
+      const result = await apiGet('messages?limit=50');
+
       if (Array.isArray(result) && result.length > 0) {
         const timestamp = Date.now();
         const loadedMessages = result.map((msg: any, index: number) => ({
@@ -189,13 +192,7 @@ export default function ChatScreen({ navigation }: Props) {
           created_at: msg.created_at
         }));
 
-        // Sort messages by creation time to ensure proper order
-        loadedMessages.sort((a, b) => {
-          const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return timeA - timeB;
-        });
-
+        // Messages are already sorted by backend (chronological order)
         setMessages(loadedMessages);
 
         // Scroll to bottom after loading messages
@@ -342,7 +339,7 @@ export default function ChatScreen({ navigation }: Props) {
     }
   };
 
-  const handleCommand = (parsed: ReturnType<typeof parseCommand>) => {
+  const handleCommand = async (parsed: ReturnType<typeof parseCommand>) => {
     console.log('🔧 handleCommand called with parsed:', parsed);
     addMessage('user', parsed.raw);
 
@@ -351,8 +348,52 @@ export default function ChatScreen({ navigation }: Props) {
         addMessage('assistant', `Available commands:\n• .help - Show this help\n• .reminder [task] [time] - Create reminder\n• .note - Open notes editor\n• .quiz [topic] - Start quiz\n• .theme [name] - Change theme\n• .logout - Logout from account\n• .profile - View profile\n• .settings - Open settings`);
         break;
       case 'reminder':
-        addMessage('assistant', `Opening reminders...`);
-        navigation.navigate('Reminders');
+        if (parsed.args.trim()) {
+          // Use smart parsing for natural language reminders
+          const smartParse = parseSmartReminder(parsed.args);
+          console.log('Smart reminder parse:', smartParse);
+
+          // Create the reminder with parsed information
+          const reminderData = {
+            title: smartParse.title,
+            dueDate: smartParse.dueDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Default to tomorrow
+            timestamp: smartParse.dueDate ? new Date(smartParse.dueDate).getTime() : Date.now() + 24 * 60 * 60 * 1000,
+            status: 'pending',
+            priority: smartParse.priority || 'medium',
+            category: smartParse.category,
+            recurrence: smartParse.recurrence
+          };
+
+          try {
+            await apiPost('reminders', reminderData);
+            loadReminders(); // Refresh the reminders list
+
+            let response = `✅ Reminder created: "${smartParse.title}"`;
+            if (smartParse.dueDate) {
+              response += `\n📅 Due: ${new Date(smartParse.dueDate).toLocaleString()}`;
+            }
+            if (smartParse.priority && smartParse.priority !== 'medium') {
+              response += `\n⚡ Priority: ${smartParse.priority}`;
+            }
+            if (smartParse.category) {
+              response += `\n📂 Category: ${smartParse.category}`;
+            }
+            if (smartParse.recurrence) {
+              response += `\n🔄 Recurs: ${smartParse.recurrence}`;
+            }
+            if (smartParse.confidence < 0.5) {
+              response += `\n\n💡 Tip: Try more specific time formats like "tomorrow at 3pm" or "in 2 hours"`;
+            }
+
+            addMessage('assistant', response);
+          } catch (error) {
+            addMessage('assistant', `❌ Failed to create reminder: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        } else {
+          // No args provided, show reminders interface
+          addMessage('assistant', `Opening reminders...`);
+          navigation.navigate('Reminders');
+        }
         break;
       case 'note':
         addMessage('assistant', `Opening notes editor...`);
@@ -425,7 +466,8 @@ export default function ChatScreen({ navigation }: Props) {
     if (text.startsWith('.')) {
       const suggestions = suggestCommands(text);
       setSuggestions(suggestions);
-      setShowSuggestions(suggestions.length > 0);
+      // Only show suggestions if we have matches and text is not too long
+      setShowSuggestions(suggestions.length > 0 && text.length <= 15);
     } else {
       setShowSuggestions(false);
     }
@@ -729,38 +771,49 @@ ${question.options.map((opt: string, idx: number) => `${idx + 1}. ${opt}`).join(
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
-          style={[themedStyles.messagesList, { backgroundColor: theme.bgGradient || theme['--bg-gradient'] || '#f5f7fa' }]}
+          style={[themedStyles.messagesList, { backgroundColor: theme.bgGradient || theme['--bg-gradient'] || '#f8fafc' }]}
           contentContainerStyle={[
             themedStyles.messagesContainer,
             messages.length === 0 && { flex: 1, justifyContent: 'center' }
           ]}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onContentSizeChange={() => {
+            // Only auto-scroll if user is already near the bottom
+            if (isNearBottom) {
+              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            }
+          }}
+          onLayout={() => {
+            // Only auto-scroll on initial layout if we have messages
+            if (messages.length > 0) {
+              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: false }), 100);
+            }
+          }}
+          onScroll={(event) => {
+            const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+            const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
+            setIsNearBottom(isNearBottom);
+          }}
           showsVerticalScrollIndicator={true}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
+          scrollEventThrottle={16}
+          bounces={true}
+          alwaysBounceVertical={true}
         />
 
-        {showSuggestions && (
-          <Modal transparent animationType="fade">
-            <TouchableOpacity
-              style={themedStyles.suggestionsOverlay}
-              onPress={() => setShowSuggestions(false)}
-            >
-              <View style={themedStyles.suggestionsContainer}>
-                {suggestions.map((suggestion, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={themedStyles.suggestionItem}
-                    onPress={() => handleSuggestionSelect(suggestion)}
-                  >
-                    <Text style={themedStyles.suggestionName}>{suggestion.name}</Text>
-                    <Text style={themedStyles.suggestionHint}>{suggestion.hint}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </TouchableOpacity>
-          </Modal>
+        {showSuggestions && suggestions.length > 0 && (
+          <View style={themedStyles.suggestionsContainerInline}>
+            {suggestions.slice(0, 4).map((suggestion, index) => (
+              <TouchableOpacity
+                key={index}
+                style={themedStyles.suggestionItem}
+                onPress={() => handleSuggestionSelect(suggestion)}
+              >
+                <Text style={themedStyles.suggestionName}>{suggestion.name}</Text>
+                <Text style={themedStyles.suggestionHint}>{suggestion.hint}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
 
         <View style={themedStyles.inputContainer}>
@@ -799,7 +852,7 @@ ${question.options.map((opt: string, idx: number) => `${idx + 1}. ${opt}`).join(
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f7fa' // Matches web --bg-gradient
+    backgroundColor: '#f8fafc' // More modern, softer background
   },
   messagesList: {
     flex: 1
@@ -809,96 +862,132 @@ const styles = StyleSheet.create({
     paddingBottom: 20
   },
   messageContainer: {
-    marginBottom: 15, // Matches web gap
-    maxWidth: '80%',
-    borderRadius: 20, // Matches web border-radius
-    padding: 12
+    marginBottom: 16,
+    maxWidth: '85%',
+    borderRadius: 24,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3
   },
   userMessage: {
     alignSelf: 'flex-end',
-    backgroundColor: '#667eea' // Matches web --user-bubble-bg gradient start
+    backgroundColor: '#6366f1',
+    borderBottomRightRadius: 8 // Tail effect
   },
   assistantMessage: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f8f9fa' // Matches web --chat-assistant-bg
+    backgroundColor: '#ffffff',
+    borderBottomLeftRadius: 8, // Tail effect
+    borderWidth: 1,
+    borderColor: '#f1f5f9'
   },
   messageText: {
     fontSize: 16,
-    lineHeight: 20,
-    fontFamily: 'System' // Will be overridden by Montserrat if available
+    lineHeight: 22,
+    fontFamily: 'System',
+    fontWeight: '400'
   },
   userMessageText: {
-    color: '#ffffff' // Matches web --user-text
+    color: '#ffffff',
+    fontWeight: '500'
   },
   assistantMessageText: {
-    color: '#2c3e50' // Matches web --assistant-text
+    color: '#1e293b',
+    fontWeight: '400'
   },
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'center', // Better alignment for mobile
-    padding: 20, // Matches web padding
+    alignItems: 'center',
+    padding: 20,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-    backgroundColor: '#ffffff', // Matches web --panel-bg
+    backgroundColor: '#ffffff',
     borderTopWidth: 1,
-    borderTopColor: '#e9ecef' // Matches web --border
+    borderTopColor: '#f1f5f9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8
   },
   input: {
     flex: 1,
-    borderWidth: 2, // Thicker border like web
-    borderColor: '#e9ecef', // Matches web --border
-    borderRadius: 25, // Matches web border-radius
-    paddingHorizontal: 20, // Matches web padding
-    paddingVertical: 12,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderRadius: 28,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     marginRight: 12,
     maxHeight: 100,
-    backgroundColor: '#f8f9fa', // Matches web --input-bg
-    fontSize: 16 // Prevents zoom on iOS
+    backgroundColor: '#f8fafc',
+    fontSize: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
   },
   sendButton: {
-    backgroundColor: '#667eea', // Matches web --accent-1
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+    backgroundColor: '#6366f1',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 24,
     alignItems: 'center',
-    minWidth: 70
+    minWidth: 80,
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4
   },
   sendButtonDisabled: {
-    backgroundColor: '#9aa0ff'
+    backgroundColor: '#cbd5e1',
+    shadowOpacity: 0.1,
+    elevation: 1
   },
   sendButtonText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 16
   },
   suggestionsOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center'
   },
   suggestionsContainer: {
-    backgroundColor: '#ffffff', // Matches web --panel-bg
-    borderRadius: 12,
-    padding: 8,
-    minWidth: 280,
-    maxWidth: '80%',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 12,
+    minWidth: 300,
+    maxWidth: '85%',
     borderWidth: 1,
-    borderColor: '#e9ecef' // Matches web --border
+    borderColor: '#f1f5f9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 12
   },
   suggestionItem: {
-    padding: 12,
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef' // Matches web --border
+    borderBottomColor: '#f8fafc',
+    borderRadius: 8
   },
   suggestionName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#2c3e50' // Matches web --text-primary
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 4
   },
   suggestionHint: {
     fontSize: 14,
-    color: '#6c757d', // Matches web --muted
-    marginTop: 4
+    color: '#64748b',
+    fontWeight: '500'
   }
 });
 
@@ -1055,6 +1144,23 @@ const createThemedStyles = (theme: any) => {
       fontSize: 14,
       color: muted,
       marginTop: 4
+    },
+    suggestionsContainerInline: {
+      position: 'absolute',
+      bottom: 80,
+      left: 20,
+      right: 20,
+      backgroundColor: panelBg,
+      borderRadius: 16,
+      padding: 8,
+      borderWidth: 1,
+      borderColor: border,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 12,
+      elevation: 8,
+      maxHeight: 200
     },
     messageTimestamp: {
       fontSize: 10,
