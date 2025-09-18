@@ -389,18 +389,23 @@
         /* Reminder Panel */
         .reminder-panel {
             background: var(--panel-bg);
-            margin: 0 20px;
             border-radius: 15px;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
             max-height: 0;
             overflow: hidden;
             transition: all 0.3s ease;
             border: 1px solid var(--border);
+            position: fixed;
+            top: 70px; /* Position below the sticky peel bar */
+            left: 20px;
+            right: 20px;
+            z-index: 99;
+            max-width: 720px;
+            margin: 0 auto;
         }
 
         .reminder-panel.expanded {
             max-height: 300px;
-            margin-bottom: 10px;
         }
 
         .reminder-list {
@@ -707,7 +712,8 @@
             }
 
             .reminder-panel {
-                margin: 0 15px;
+                left: 15px;
+                right: 15px;
             }
 
             .chat-area {
