@@ -402,6 +402,7 @@
             z-index: 99;
             max-width: 720px;
             margin: 0 auto;
+            margin-top: 0;
         }
 
         .reminder-panel.expanded {
