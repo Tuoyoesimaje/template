@@ -294,13 +294,22 @@ export default function ChatScreen({ navigation }: Props) {
 
   const handleSend = async () => {
     const text = inputText.trim();
+    console.log('📤 handleSend called with text:', text);
     if (!text || isLoading) return;
 
     setInputText('');
     setShowSuggestions(false);
 
     // Check if this is a quiz answer (number 1-4)
+    console.log('🔍 Checking for quiz answer:', {
+      hasQuiz: currentQuiz.length > 0,
+      timerActive: quizTimerActive,
+      isNumber: /^[1-4]$/.test(text),
+      text
+    });
+
     if (currentQuiz.length > 0 && quizTimerActive && /^[1-4]$/.test(text)) {
+      console.log('🎯 Detected quiz answer:', text);
       const answerIndex = parseInt(text) - 1;
       addMessage('user', text);
       handleQuizAnswer(answerIndex);
@@ -308,6 +317,7 @@ export default function ChatScreen({ navigation }: Props) {
     }
 
     const parsed = parseCommand(text);
+    console.log('🔍 Parsed command:', parsed);
 
     if (parsed.name === 'unknown') {
       // Regular chat message - send to Gemini
@@ -333,6 +343,7 @@ export default function ChatScreen({ navigation }: Props) {
   };
 
   const handleCommand = (parsed: ReturnType<typeof parseCommand>) => {
+    console.log('🔧 handleCommand called with parsed:', parsed);
     addMessage('user', parsed.raw);
 
     switch (parsed.name) {
@@ -349,7 +360,16 @@ export default function ChatScreen({ navigation }: Props) {
         break;
       case 'quiz':
         const topic = parsed.args || 'general';
-        startQuiz(topic);
+        console.log('🎯 Quiz command detected with topic:', topic);
+        console.log('🧭 Navigation object:', navigation);
+        console.log('🧭 Navigating to QuizScreen with topic:', topic);
+        try {
+          navigation.navigate('Quiz', { topic });
+          console.log('✅ Navigation call successful');
+        } catch (error) {
+          console.error('❌ Navigation error:', error);
+          addMessage('assistant', 'Failed to navigate to quiz. Please try again.');
+        }
         break;
       case 'theme':
         if (parsed.args) {
@@ -418,20 +438,30 @@ export default function ChatScreen({ navigation }: Props) {
 
   // Quiz Functions
   const startQuiz = async (topic: string) => {
+    console.log('🎯 Starting quiz with topic:', topic);
     addMessage('assistant', `Generating quiz for topic: ${topic}...`);
 
     try {
       // For now, use demo quiz data - in production this would call the backend
       const demoQuiz = getDemoQuiz(topic);
+      console.log('📚 Demo quiz data:', demoQuiz);
+
       setCurrentQuiz(demoQuiz);
       setCurrentQuestionIndex(0);
       setQuizScore(0);
       setQuizStreak(0);
       setTotalQuizQuestions(demoQuiz.length);
 
+      console.log('✅ Quiz state set:', {
+        currentQuiz: demoQuiz.length,
+        currentQuestionIndex: 0,
+        totalQuizQuestions: demoQuiz.length
+      });
+
       addMessage('assistant', 'Quiz ready! Answer by typing the option number (1-4).');
       showQuizQuestion();
     } catch (error) {
+      console.error('❌ Quiz start error:', error);
       addMessage('assistant', 'Failed to generate quiz. Please try again.');
     }
   };
@@ -459,12 +489,21 @@ export default function ChatScreen({ navigation }: Props) {
   };
 
   const showQuizQuestion = () => {
+    console.log('❓ Showing quiz question:', {
+      currentQuiz: currentQuiz?.length,
+      currentQuestionIndex,
+      totalQuizQuestions
+    });
+
     if (!currentQuiz || currentQuestionIndex >= currentQuiz.length) {
+      console.log('🏁 Ending quiz - no more questions or no quiz');
       endQuiz();
       return;
     }
 
     const question = currentQuiz[currentQuestionIndex];
+    console.log('📝 Current question:', question);
+
     const progress = Math.round(((currentQuestionIndex) / Math.max(1, totalQuizQuestions)) * 100);
 
     const questionText = `
@@ -478,13 +517,16 @@ ${question.options.map((opt: string, idx: number) => `${idx + 1}. ${opt}`).join(
 ⏱️ Time: ${quizTimeLeft}s
     `.trim();
 
+    console.log('📤 Sending question message');
     addMessage('assistant', questionText);
 
     // Start timer
+    console.log('⏰ Starting quiz timer');
     setQuizTimerActive(true);
     const timer = setInterval(() => {
       setQuizTimeLeft(prev => {
         if (prev <= 1) {
+          console.log('⏰ Timer expired');
           clearInterval(timer);
           setQuizTimerActive(false);
           handleQuizTimeout();
@@ -496,23 +538,47 @@ ${question.options.map((opt: string, idx: number) => `${idx + 1}. ${opt}`).join(
   };
 
   const handleQuizAnswer = (answerIndex: number) => {
-    if (!currentQuiz || !quizTimerActive) return;
+    console.log('🎯 Handling quiz answer:', {
+      answerIndex,
+      currentQuiz: currentQuiz?.length,
+      quizTimerActive,
+      currentQuestionIndex
+    });
+
+    if (!currentQuiz || !quizTimerActive) {
+      console.log('❌ Quiz not active or timer not running');
+      return;
+    }
 
     setQuizTimerActive(false);
     const question = currentQuiz[currentQuestionIndex];
     const isCorrect = answerIndex === question.correct;
 
+    console.log('📊 Answer analysis:', {
+      userAnswer: answerIndex,
+      correctAnswer: question.correct,
+      isCorrect,
+      question: question.question
+    });
+
     if (isCorrect) {
       setQuizScore(prev => prev + 1);
       setQuizStreak(prev => prev + 1);
-      addMessage('assistant', `✅ ${randomFrom(QUIZ_POSITIVE)}\n\n${randomFrom(QUIZ_ENCOURAGE)}`);
+      const positiveMsg = randomFrom(QUIZ_POSITIVE);
+      const encourageMsg = randomFrom(QUIZ_ENCOURAGE);
+      console.log('✅ Correct answer - sending messages');
+      addMessage('assistant', `✅ ${positiveMsg}\n\n${encourageMsg}`);
     } else {
       setQuizStreak(0);
       const correctAnswer = question.options[question.correct];
-      addMessage('assistant', `❌ ${randomFrom(QUIZ_NEGATIVE)}\n\nCorrect answer: ${correctAnswer}\n\n${randomFrom(QUIZ_ENCOURAGE)}`);
+      const negativeMsg = randomFrom(QUIZ_NEGATIVE);
+      const encourageMsg = randomFrom(QUIZ_ENCOURAGE);
+      console.log('❌ Wrong answer - sending messages');
+      addMessage('assistant', `❌ ${negativeMsg}\n\nCorrect answer: ${correctAnswer}\n\n${encourageMsg}`);
     }
 
     // Move to next question after a delay
+    console.log('⏳ Moving to next question in 2 seconds');
     setTimeout(() => {
       setCurrentQuestionIndex(prev => prev + 1);
       setQuizTimeLeft(25);

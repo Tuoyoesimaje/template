@@ -1962,7 +1962,7 @@
     // API_ROOT: prefer an explicit saved server URL, else use environment variable or default
     const API_ROOT = localStorage.getItem('sa_api_root') ||
                      (import.meta.env?.VITE_API_BASE_URL) ||
-                     'http://localhost:3001';
+                     'https://alfred-ai-backend.onrender.com';
     // store auth token
     const AUTH_TOKEN_KEY = 'sa_auth_token';
 
@@ -2932,12 +2932,12 @@
             })();
             updatePeelBar();
             populateReminderPanel();
-            // If no Gemini endpoint is configured, default to the local proxy to make it easier to get started.
+            // If no Gemini endpoint is configured, default to the production backend proxy to make it easier to get started.
             // The user can override this with .setEndpoint <url>.
             if (!getGeminiEndpoint()) {
-                const defaultProxy = 'http://localhost:3000/gemini';
+                const defaultProxy = 'https://alfred-ai-73gj.onrender.com/gemini';
                 try { localStorage.setItem('sa_gemini_endpoint', defaultProxy); } catch (e) { /* ignore storage errors */ }
-                addMessage(`No Gemini endpoint configured; defaulting to local proxy at ${defaultProxy}. Use .setEndpoint <url> to change.`, 'assistant', false);
+                addMessage(`No Gemini endpoint configured; defaulting to production proxy at ${defaultProxy}. Use .setEndpoint <url> to change.`, 'assistant', false);
             }
 
             // Fetch server-stored theme preference (if any) and apply it without announcing

@@ -186,8 +186,8 @@ app.use(cors({
     ? process.env.ALLOWED_ORIGINS?.split(',') || [
         'http://localhost:5173',
         'http://localhost:3000',
-        'https://alfred-ai-frontend.vercel.app',
-        'https://alfred-ai-frontend.onrender.com',
+        'https://alfredai-snowy.vercel.app',
+        'https://alfred-ai-73gj.onrender.com',
         /\.vercel\.app$/,
         /\.onrender\.com$/
       ]
@@ -1007,7 +1007,7 @@ process.on('SIGINT', async () => {
 
 // Start server after MongoDB connection
 connectToMongoDB().then(() => {
-  app.listen(PORT, () => console.log(`Gemini proxy listening on http://localhost:${PORT} (forwarding to ${GEMINI_API_URL || '<<not configured>>'})`));
+  app.listen(PORT, () => console.log(`Gemini proxy listening on port ${PORT} (forwarding to ${GEMINI_API_URL || '<<not configured>>'})`));
 }).catch(err => {
   console.error('Failed to start server:', err);
   process.exit(1);
