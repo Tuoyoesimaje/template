@@ -92,7 +92,7 @@
 }
 
 /* stronger mobile tweaks for auth pages */
-@media (max-width: 480px) {
+@media (max-width: 600px) {
     .auth-page { padding: 8px; }
     .auth-container {
         width: 100%;
