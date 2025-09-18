@@ -88,52 +88,64 @@ export function parseSmartReminder(text: string): SmartReminderParse {
     confidence: 0.3
   };
 
-  // Time patterns
+  // Expanded time patterns with more natural language support
   const timePatterns = [
     // Today patterns
     /\btoday\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
     /\btoday\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
     /\btoday\s+(\d{1,2})\s*(am|pm)/i,
+    /\btoday\s+around\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
 
     // Tomorrow patterns
     /\btomorrow\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
     /\btomorrow\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
     /\btomorrow\s+(\d{1,2})\s*(am|pm)/i,
+    /\btomorrow\s+around\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
 
     // Day of week patterns
     /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
     /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
+    /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+around\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
+    /\bthis\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
+    /\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i,
 
     // In X time patterns
     /\bin\s+(\d+)\s+(hour|hours|minute|minutes|day|days|week|weeks)/i,
     /\bin\s+(\d+)\s+(hr|hrs|min|mins|d|w)/i,
+    /\bin\s+about\s+(\d+)\s+(hour|hours|minute|minutes|day|days|week|weeks)/i,
 
     // Specific time patterns
     /\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
-    /(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i
+    /\bat\s+around\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
+    /(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i,
+    /\bnoon\b/i,
+    /\bmidnight\b/i
   ];
 
-  // Priority keywords
+  // Expanded priority keywords with more natural language
   const priorityPatterns = {
-    high: /\b(urgent|important|critical|asap|emergency|high priority)\b/i,
-    medium: /\b(medium|normal|standard)\b/i,
-    low: /\b(low priority|whenever|eventually|sometime)\b/i
+    high: /\b(urgent|important|critical|asap|emergency|high priority|super important|very important|must do|deadline|crucial)\b/i,
+    medium: /\b(medium|normal|standard|fairly important|somewhat important)\b/i,
+    low: /\b(low priority|whenever|eventually|sometime|when i have time|not urgent|remind me later)\b/i
   };
 
-  // Recurrence patterns
+  // Expanded recurrence patterns
   const recurrencePatterns = {
-    daily: /\b(every day|daily|each day)\b/i,
-    weekly: /\b(every week|weekly|each week)\b/i,
-    monthly: /\b(every month|monthly|each month)\b/i
+    daily: /\b(every day|daily|each day|everyday|day to day)\b/i,
+    weekly: /\b(every week|weekly|each week|week to week)\b/i,
+    monthly: /\b(every month|monthly|each month|month to month)\b/i
   };
 
-  // Category patterns
+  // Expanded category patterns with more keywords
   const categoryPatterns = {
-    work: /\b(work|meeting|presentation|deadline|project|task)\b/i,
-    personal: /\b(personal|shopping|grocery|clean|laundry|appointment)\b/i,
-    health: /\b(health|doctor|exercise|gym|medication|appointment)\b/i,
-    study: /\b(study|exam|assignment|homework|reading|research)\b/i
+    work: /\b(work|meeting|presentation|deadline|project|task|office|business|professional|conference|call)\b/i,
+    personal: /\b(personal|shopping|grocery|clean|laundry|appointment|home|family|friends|social)\b/i,
+    health: /\b(health|doctor|exercise|gym|medication|appointment|workout|fitness|medical|therapy|checkup)\b/i,
+    study: /\b(study|exam|assignment|homework|reading|research|learn|school|class|education|test|quiz)\b/i
   };
+
+  // Filler words and phrases to ignore
+  const fillerWords = /\b(i need to|i have to|i should|i must|please|can you|could you|would you|remind me to|don't forget to|remember to|make sure to|set a reminder for|schedule|plan to)\b/gi;
 
   // Extract due date
   for (const pattern of timePatterns) {
@@ -173,32 +185,66 @@ export function parseSmartReminder(text: string): SmartReminderParse {
     }
   }
 
-  // Clean up title by removing parsed elements
+  // Smart title extraction with better natural language understanding
   let cleanTitle = text;
+
+  // Remove filler words first
+  cleanTitle = cleanTitle.replace(fillerWords, '');
+
+  // Remove time expressions from title
   if (result.dueDate) {
-    // Remove time expressions from title
-    cleanTitle = cleanTitle.replace(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+at\s+\d{1,2}(?::\d{2})?\s*(am|pm)?/gi, '');
-    cleanTitle = cleanTitle.replace(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+\d{1,2}(?::\d{2})?\s*(am|pm)/gi, '');
-    cleanTitle = cleanTitle.replace(/\bin\s+\d+\s+(hour|hours|minute|minutes|day|days|week|weeks|hr|hrs|min|mins|d|w)/gi, '');
-    cleanTitle = cleanTitle.replace(/\bat\s+\d{1,2}(?::\d{2})?\s*(am|pm)/gi, '');
+    cleanTitle = cleanTitle.replace(/\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(at|around)?\s*\d{1,2}(?::\d{2})?\s*(am|pm)?/gi, '');
+    cleanTitle = cleanTitle.replace(/\bthis\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(at|around)?\s*\d{1,2}(?::\d{2})?\s*(am|pm)?/gi, '');
+    cleanTitle = cleanTitle.replace(/\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+(at|around)?\s*\d{1,2}(?::\d{2})?\s*(am|pm)?/gi, '');
+    cleanTitle = cleanTitle.replace(/\bin\s+(about\s+)?\d+\s+(hour|hours|minute|minutes|day|days|week|weeks|hr|hrs|min|mins|d|w)/gi, '');
+    cleanTitle = cleanTitle.replace(/\b(at|around)\s+\d{1,2}(?::\d{2})?\s*(am|pm)/gi, '');
+    cleanTitle = cleanTitle.replace(/\b(noon|midnight)\b/gi, '');
   }
 
   // Remove priority keywords
-  cleanTitle = cleanTitle.replace(/\b(urgent|important|critical|asap|emergency|high priority|medium|normal|standard|low priority|whenever|eventually|sometime)\b/gi, '');
+  cleanTitle = cleanTitle.replace(/\b(urgent|important|critical|asap|emergency|high priority|super important|very important|must do|deadline|crucial|medium|normal|standard|fairly important|somewhat important|low priority|whenever|eventually|sometime|when i have time|not urgent|remind me later)\b/gi, '');
 
   // Remove recurrence keywords
-  cleanTitle = cleanTitle.replace(/\b(every day|daily|each day|every week|weekly|each week|every month|monthly|each month)\b/gi, '');
+  cleanTitle = cleanTitle.replace(/\b(every day|daily|each day|everyday|day to day|every week|weekly|each week|week to week|every month|monthly|each month|month to month)\b/gi, '');
+
+  // Remove category keywords (but keep them if they're part of the main task)
+  // Only remove if they're not the core of the task
+  const categoryWords = /\b(work|meeting|presentation|deadline|project|task|office|business|professional|conference|call|personal|shopping|grocery|clean|laundry|appointment|home|family|friends|social|health|doctor|exercise|gym|medication|workout|fitness|medical|therapy|checkup|study|exam|assignment|homework|reading|research|learn|school|class|education|test|quiz)\b/gi;
+  cleanTitle = cleanTitle.replace(categoryWords, '');
 
   // Clean up extra spaces and punctuation
   cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
   cleanTitle = cleanTitle.replace(/^[,.\s]+|[,.\s]+$/g, '');
 
+  // If the cleaned title is too short or empty, try to extract a meaningful title
+  if (!cleanTitle || cleanTitle.length < 3) {
+    // Try to find the main verb + object pattern
+    const verbObjectMatch = text.match(/\b(to|for|about)\s+(.+)/i);
+    if (verbObjectMatch) {
+      cleanTitle = verbObjectMatch[2].trim();
+    } else {
+      // Fallback: take the first meaningful words
+      const words = text.split(/\s+/).filter(word =>
+        word.length > 2 &&
+        !/\b(at|in|on|by|for|to|and|the|a|an|my|our|your|his|her|their|this|that|these|those|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|can|could|should|may|might|must|shall|about|around|after|before|during|since|until|through|with|without|from|into|onto|upon|over|under|above|below|between|among|throughout|against|along|beside|besides|near|next|close|far|away|here|there|now|then|soon|later|today|tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening|night|noon|midnight)\b/i.test(word)
+      );
+      cleanTitle = words.slice(0, 8).join(' '); // Take first 8 meaningful words
+    }
+  }
+
+  // Capitalize first letter of title
   if (cleanTitle) {
-    result.title = cleanTitle;
+    result.title = cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+  }
+
+  // Boost confidence if we have a good title
+  if (result.title && result.title.length > 5) {
+    result.confidence += 0.1;
   }
 
   // Ensure minimum confidence
   result.confidence = Math.max(result.confidence, 0.1);
+  result.confidence = Math.min(result.confidence, 1.0); // Cap at 1.0
 
   return result;
 }

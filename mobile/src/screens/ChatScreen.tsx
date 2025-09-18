@@ -354,14 +354,13 @@ export default function ChatScreen({ navigation }: Props) {
           console.log('Smart reminder parse:', smartParse);
 
           // Create the reminder with parsed information
+          // Note: Backend currently only supports title, dueDate, timestamp, status
           const reminderData = {
             title: smartParse.title,
             dueDate: smartParse.dueDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Default to tomorrow
             timestamp: smartParse.dueDate ? new Date(smartParse.dueDate).getTime() : Date.now() + 24 * 60 * 60 * 1000,
-            status: 'pending',
-            priority: smartParse.priority || 'medium',
-            category: smartParse.category,
-            recurrence: smartParse.recurrence
+            status: 'pending'
+            // priority, recurrence, category not yet supported by backend
           };
 
           try {
